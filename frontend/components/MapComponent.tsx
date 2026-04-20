@@ -11,6 +11,8 @@ interface MapComponentProps {
   onMarkerClick: (shop: Shop) => void;
   userLocation: UserLocation | null;
   radiusKm?: number;
+  /** Bump when the parent wants the map to pan/zoom to selectedShop (skip for ShopCard-only selection while anchor is SHOP) */
+  mapPanNonce?: number;
 }
 
 // ... (createShopIcon 函数保持不变) ...
@@ -131,7 +133,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
   selectedShop, 
   onMarkerClick,
   userLocation,
-  radiusKm = 0 
+  radiusKm = 0,
+  mapPanNonce = 0,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -231,12 +234,14 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   }, [shops, selectedShop, userLocation]);
 
-  // 选中店铺时的自动聚焦
+  // Pan/zoom to selection only when parent bumps mapPanNonce (fast fly; ShopCard in SHOP-anchor mode skips bump)
   useEffect(() => {
-    if (selectedShop && mapRef.current) {
-      mapRef.current.flyTo([selectedShop.lat, selectedShop.lng], 12.5);
-    }
-  }, [selectedShop]);
+    if (!selectedShop || !mapRef.current || mapPanNonce === 0) return;
+    mapRef.current.flyTo([selectedShop.lat, selectedShop.lng], 12.5, {
+      duration: 0.35,
+      easeLinearity: 0.5,
+    });
+  }, [selectedShop, mapPanNonce]);
 
   return (
     <div 
