@@ -136,6 +136,8 @@ const HomePage: React.FC = () => {
   const handledAutoEditKeyRef = useRef<string | null>(null);
   /** Any ShopCard edit modal is open — block drawer + horizontal list touch handlers */
   const [shopCardEditOpen, setShopCardEditOpen] = useState(false);
+  /** Increment when the map should pan/zoom to the current selectedShop (not on ShopCard tap while anchor is SHOP) */
+  const [mapPanNonce, setMapPanNonce] = useState(0);
 
   const [drawerHeight, setDrawerHeight] = useState(COLLAPSED_HEIGHT);
   const isExpanded = drawerHeight > COLLAPSED_HEIGHT + 50;
@@ -163,6 +165,7 @@ const HomePage: React.FC = () => {
           setSelectedShop(target);
           setNearbyCenterType('SHOP');
           setNearbyCenterName(target.name || '');
+          setMapPanNonce((n) => n + 1);
           setTimeout(() => setDrawerHeight(EXPANDED_HEIGHT), 100);
           if (autoEditKey && handledAutoEditKeyRef.current !== autoEditKey) {
             setPendingEditShopId(target.id);
@@ -446,6 +449,7 @@ const HomePage: React.FC = () => {
       return;
     }
 
+    const anchorIsShop = useNearbyFilter && nearbyCenterType === 'SHOP';
     setSelectedShop(shop);
     if (!useNearbyFilter) {
       setUseNearbyFilter(true);
@@ -453,26 +457,34 @@ const HomePage: React.FC = () => {
       setNearbyCenterType('SHOP');
       setNearbyCenterName(shop.name || '');
       setRadiusKm(5);
+      setMapPanNonce((n) => n + 1);
+    } else if (!anchorIsShop) {
+      setMapPanNonce((n) => n + 1);
     }
+    // ShopCard while "nearby around this shop": keep filter center; do not bump mapPanNonce
     if (!isExpanded) setDrawerHeight(EXPANDED_HEIGHT);
     stopAutoScroll();
   };
 
   const handleMarkerClick = (shop: Shop) => {
-     if (selectedShop && selectedShop.id === shop.id) {
-       const slug = shop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-       navigate(`/shop/${slug}`);
-     } else {
-       setSelectedShop(shop);
-       if (!useNearbyFilter) {
-          setUseNearbyFilter(true);
-          setUserLocation({ lat: shop.lat, lng: shop.lng });
-          setNearbyCenterType('SHOP');
-          setNearbyCenterName(shop.name || '');
-       }
-       if (!isExpanded) setDrawerHeight(EXPANDED_HEIGHT);
-       stopAutoScroll();
-     }
+    if (selectedShop && selectedShop.id === shop.id) {
+      const slug = shop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      navigate(`/shop/${slug}`);
+      return;
+    }
+    setSelectedShop(shop);
+    if (!useNearbyFilter) {
+      setUseNearbyFilter(true);
+      setUserLocation({ lat: shop.lat, lng: shop.lng });
+      setNearbyCenterType('SHOP');
+      setNearbyCenterName(shop.name || '');
+    } else if (nearbyCenterType === 'SHOP') {
+      setUserLocation({ lat: shop.lat, lng: shop.lng });
+      setNearbyCenterName(shop.name || '');
+    }
+    setMapPanNonce((n) => n + 1);
+    if (!isExpanded) setDrawerHeight(EXPANDED_HEIGHT);
+    stopAutoScroll();
   };
 
   // Drawer Logic
@@ -863,7 +875,16 @@ const HomePage: React.FC = () => {
       */}
       <div className="flex-1 relative overflow-hidden min-h-0">
         <div className="absolute inset-0 z-0">
-          <MapComponent shops={filteredShops} center={userLocation || NZ_CENTER} zoom={zoom} selectedShop={selectedShop} userLocation={userLocation} onMarkerClick={handleMarkerClick} radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} />
+          <MapComponent
+            shops={filteredShops}
+            center={userLocation || NZ_CENTER}
+            zoom={zoom}
+            selectedShop={selectedShop}
+            userLocation={userLocation}
+            onMarkerClick={handleMarkerClick}
+            radiusKm={useNearbyFilter && userLocation ? radiusKm : 0}
+            mapPanNonce={mapPanNonce}
+          />
         </div>
 
         {showShareTooltip && (
