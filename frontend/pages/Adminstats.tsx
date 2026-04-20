@@ -55,15 +55,7 @@ const AdminStats: React.FC = () => {
     fetchAllStats();
   }, [API_BASE_URL, startDate, endDate]);
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Loading stats...</div>;
-  if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
-
-  const grandTotal = stats.reduce((sum, item) => sum + item.total, 0);
-  const totalSms = stats.reduce((sum, item) => sum + item.sms, 0);
-  const totalCall = stats.reduce((sum, item) => sum + item.call, 0);
-  const uniqueShopCount = new Set(stats.map((item) => String(item.shop_id))).size;
-  const uniqueDateCount = new Set(stats.map((item) => item.date)).size;
-
+  /** Must run every render — never after conditional returns (Rules of Hooks) */
   const shopAggregates = useMemo((): ShopAggregateRow[] => {
     const byId = new Map<string, ShopAggregateRow>();
     for (const row of stats) {
@@ -82,6 +74,15 @@ const AdminStats: React.FC = () => {
     }
     return Array.from(byId.values()).sort((a, b) => b.total - a.total);
   }, [stats]);
+
+  if (loading) return <div className="p-8 text-center text-gray-500">Loading stats...</div>;
+  if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
+
+  const grandTotal = stats.reduce((sum, item) => sum + item.total, 0);
+  const totalSms = stats.reduce((sum, item) => sum + item.sms, 0);
+  const totalCall = stats.reduce((sum, item) => sum + item.call, 0);
+  const uniqueShopCount = new Set(stats.map((item) => String(item.shop_id))).size;
+  const uniqueDateCount = new Set(stats.map((item) => item.date)).size;
 
   const shopDetailPath = (name: string | undefined, shopId: string | number) => {
     const slug = (name || '')
