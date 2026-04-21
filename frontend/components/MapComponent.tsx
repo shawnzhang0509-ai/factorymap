@@ -237,11 +237,28 @@ const MapComponent: React.FC<MapComponentProps> = ({
   // Pan/zoom to selection only when parent bumps mapPanNonce (fast fly; ShopCard in SHOP-anchor mode skips bump)
   useEffect(() => {
     if (!selectedShop || !mapRef.current || mapPanNonce === 0) return;
-    mapRef.current.flyTo([selectedShop.lat, selectedShop.lng], 12.5, {
+    const map = mapRef.current;
+
+    // With nearby radius ring: fit whole circle in view + padding so the ring edge stays visible (not full-screen fill)
+    if (radiusKm > 0 && userLocation) {
+      const ring = L.circle([userLocation.lat, userLocation.lng], {
+        radius: radiusKm * 1000,
+      });
+      const bounds = ring.getBounds();
+      map.flyToBounds(bounds, {
+        padding: [44, 44],
+        maxZoom: 11.75,
+        duration: 0.35,
+        easeLinearity: 0.5,
+      });
+      return;
+    }
+
+    map.flyTo([selectedShop.lat, selectedShop.lng], 11, {
       duration: 0.35,
       easeLinearity: 0.5,
     });
-  }, [selectedShop, mapPanNonce]);
+  }, [selectedShop, mapPanNonce, radiusKm, userLocation]);
 
   return (
     <div 
