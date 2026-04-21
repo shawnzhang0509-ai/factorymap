@@ -239,25 +239,58 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (!selectedShop || !mapRef.current || mapPanNonce === 0) return;
     const map = mapRef.current;
 
-    // With nearby radius ring: fit whole circle in view + padding so the ring edge stays visible (not full-screen fill)
-    if (radiusKm > 0 && userLocation) {
-      const ring = L.circle([userLocation.lat, userLocation.lng], {
-        radius: radiusKm * 1000,
-      });
-      const bounds = ring.getBounds();
-      map.flyToBounds(bounds, {
-        padding: [44, 44],
-        maxZoom: 11.75,
-        duration: 0.35,
-        easeLinearity: 0.5,
-      });
-      return;
-    }
+    const safeFlyTo = (lat: number, lng: number, z: number) => {
+      try {
+        map.flyTo([lat, lng], z, { duration: 0.35, easeLinearity: 0.5 });
+      } catch {
+        try {
+          map.setView([lat, lng], z);
+        } catch {
+          /* ignore */
+        }
+      }
+    };
 
-    map.flyTo([selectedShop.lat, selectedShop.lng], 11, {
-      duration: 0.35,
-      easeLinearity: 0.5,
-    });
+    const latOk = (v: number) => Number.isFinite(v) && Math.abs(v) <= 90;
+    const lngOk = (v: number) => Number.isFinite(v) && Math.abs(v) <= 180;
+    const rk = Number(radiusKm);
+    const canFitRing =
+      rk > 0 &&
+      userLocation &&
+      latOk(userLocation.lat) &&
+      lngOk(userLocation.lng);
+
+    const run = () => {
+      if (!mapRef.current) return;
+      const m = mapRef.current;
+
+      if (canFitRing && userLocation) {
+        try {
+          const ring = L.circle([userLocation.lat, userLocation.lng], {
+            radius: rk * 1000,
+          });
+          const bounds = ring.getBounds();
+          if (!bounds.isValid()) {
+            safeFlyTo(selectedShop.lat, selectedShop.lng, 11);
+            return;
+          }
+          m.flyToBounds(bounds, {
+            padding: L.point(48, 48),
+            maxZoom: 11.75,
+            duration: 0.35,
+          });
+        } catch {
+          safeFlyTo(selectedShop.lat, selectedShop.lng, 11);
+        }
+        return;
+      }
+
+      if (latOk(selectedShop.lat) && lngOk(selectedShop.lng)) {
+        safeFlyTo(selectedShop.lat, selectedShop.lng, 11);
+      }
+    };
+
+    requestAnimationFrame(run);
   }, [selectedShop, mapPanNonce, radiusKm, userLocation]);
 
   return (
