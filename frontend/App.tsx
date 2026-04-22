@@ -21,6 +21,8 @@ import AdminStats from './pages/Adminstats';
 import MyAdsPage from './pages/MyAdsPage';
 import AssignAdsPage from './pages/AssignAdsPage';
 import BadgeFilterDropdown from './components/BadgeFilterDropdown';
+import MinSpendFilterDropdown from './components/MinSpendFilterDropdown';
+import { parseMinSpend } from './constants/minSpend';
 
 const STORAGE_KEY = 'nz_massage_shops_v1';
 const SHARE_TOOLTIP_SEEN_KEY = 'nz_share_tooltip_seen_v1';
@@ -40,7 +42,14 @@ function normalizeShopFromApi(shop: any, apiBase: string): Shop {
     : shop.new_girls_last_15_days
       ? 'New'
       : '';
-  return { ...shop, pictures, badge_text, filter_city: shop.filter_city || '' };
+  const minSpend = parseMinSpend(shop.min_spend);
+  return {
+    ...shop,
+    pictures,
+    badge_text,
+    filter_city: shop.filter_city || '',
+    min_spend: minSpend ?? undefined,
+  };
 }
 
 /** Keep collapsed strip low so map stays large; affordance is the FAB + safe-area anchoring */
@@ -127,6 +136,8 @@ const HomePage: React.FC = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   /** Map region filter (OR); empty = all regions */
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  /** Min spend filter: show shops with no min_spend or min_spend <= value */
+  const [maxMinSpend, setMaxMinSpend] = useState<number | null>(null);
   const [searchPanelOpen, setSearchPanelOpen] = useState(false);
   const [searchDraft, setSearchDraft] = useState('');
   const [appliedSearchKeyword, setAppliedSearchKeyword] = useState('');
@@ -251,14 +262,8 @@ const HomePage: React.FC = () => {
     return Array.from(tagSet).sort();
   }, [shops]);
 
-  /** Below two region rows (taller chips + larger type) */
-  const badgeBarTopClass = useMemo(
-    () =>
-      allTags.length > 0
-        ? 'top-[calc(env(safe-area-inset-top,0px)+3.95rem)]'
-        : '',
-    [allTags.length]
-  );
+  /** Below two region rows: badge + min. spend filters */
+  const badgeBarTopClass = 'top-[calc(env(safe-area-inset-top,0px)+3.95rem)]';
 
   const nearbyRangeTitle = useMemo(
     () => buildNearbyRangeTitle(nearbyCenterType, nearbyCenterName, radiusKm),
@@ -288,6 +293,14 @@ const HomePage: React.FC = () => {
       result = result.filter((shop) => {
         const fc = (shop as Shop & { filter_city?: string }).filter_city?.trim();
         return fc && regionSet.has(fc);
+      });
+    }
+
+    if (maxMinSpend != null) {
+      result = result.filter((shop) => {
+        const v = (shop as Shop & { min_spend?: number }).min_spend;
+        if (v == null || v === undefined) return true;
+        return v <= maxMinSpend;
       });
     }
 
@@ -339,7 +352,7 @@ const HomePage: React.FC = () => {
     }
 
     return result;
-  }, [shops, useNearbyFilter, userLocation, radiusKm, selectedTags, selectedRegions, selectedShop]);
+  }, [shops, useNearbyFilter, userLocation, radiusKm, selectedTags, selectedRegions, maxMinSpend, selectedShop]);
 
   // Scrolling Logic
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -842,26 +855,21 @@ const HomePage: React.FC = () => {
         </div>
       </div>
 
-      {allTags.length > 0 && (
-        <div
-          className={`absolute left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-3 pointer-events-none bg-transparent ${badgeBarTopClass}`}
-        >
-          <div className="max-w-7xl mx-auto py-0 pointer-events-auto">
-            <BadgeFilterDropdown
-              allTags={allTags}
-              selectedTags={selectedTags}
-              onChange={setSelectedTags}
-            />
-          </div>
+      <div
+        className={`absolute left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-3 pointer-events-none bg-transparent ${badgeBarTopClass}`}
+      >
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-center gap-2 py-0 pointer-events-auto">
+          <BadgeFilterDropdown
+            allTags={allTags}
+            selectedTags={selectedTags}
+            onChange={setSelectedTags}
+          />
+          <MinSpendFilterDropdown value={maxMinSpend} onChange={setMaxMinSpend} />
         </div>
-      )}
+      </div>
 
       <div
-        className={`flex-1 relative overflow-hidden ${
-          allTags.length > 0
-            ? 'pt-[calc(env(safe-area-inset-top,0px)+5.45rem)]'
-            : 'pt-[calc(env(safe-area-inset-top,0px)+3.55rem)]'
-        }`}
+        className="flex-1 relative overflow-hidden pt-[calc(env(safe-area-inset-top,0px)+5.45rem)]"
       >
         <MapComponent shops={filteredShops} center={userLocation || NZ_CENTER} zoom={zoom} selectedShop={selectedShop} userLocation={userLocation} onMarkerClick={handleMarkerClick} radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} />
 

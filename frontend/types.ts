@@ -10,6 +10,8 @@ export interface ShopBase {
   badge_text: string;
   /** Admin-only: fixed region for map filter (see REGION_OPTIONS) */
   filter_city?: string;
+  /** Min. entry spend (NZD), optional; used for list filter and ShopCard */
+  min_spend?: number;
   can_edit?: boolean;
 }
 

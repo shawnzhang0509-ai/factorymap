@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Upload, Info, DollarSign, MapPin } from 'lucide-react';
 import { ShopCreate, Shop } from './types';
 import { REGION_OPTIONS } from '../constants/filterRegions';
+import { MIN_SPEND_OPTIONS } from '../constants/minSpend';
 
 interface AdminPanelProps {
   onAddShop: (shop: Shop) => void;
@@ -25,6 +26,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
     about_me: '',
     additional_price: '',
     filter_city: '',
+    min_spend: undefined,
   });
 
   const [tags, setTags] = useState<string[]>([]);
@@ -65,6 +67,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
     if ((newShop.filter_city || '').trim()) {
       formData.append("filter_city", (newShop.filter_city || '').trim());
     }
+    if (newShop.min_spend != null && newShop.min_spend > 0) {
+      formData.append("min_spend", String(newShop.min_spend));
+    }
 
     (newShop.pictures as File[] | undefined)?.forEach(file => {
       if (file instanceof File) formData.append("pictures", file);
@@ -100,6 +105,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
         about_me: '',
         additional_price: '',
         filter_city: '',
+        min_spend: undefined,
       });
       setTags([]);
       setTagInput("");
@@ -272,6 +278,27 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
                 {REGION_OPTIONS.map((r) => (
                   <option key={r} value={r}>
                     {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-2">
+                <DollarSign size={14} /> Min. spend (entry, NZD)
+              </label>
+              <select
+                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none text-sm text-gray-800"
+                value={newShop.min_spend != null && newShop.min_spend > 0 ? String(newShop.min_spend) : ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setNewShop({ ...newShop, min_spend: v ? Number(v) : undefined });
+                }}
+              >
+                <option value="">Not set</option>
+                {MIN_SPEND_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    ${n}
                   </option>
                 ))}
               </select>

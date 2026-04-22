@@ -20,6 +20,7 @@ class Shop(db.Model):
     about_me = db.Column(db.Text, nullable=True) 
     additional_price = db.Column(db.String(200), nullable=True)
     filter_city = db.Column(db.String(80), nullable=True)
+    min_spend = db.Column(db.Integer, nullable=True)
 
     # 关联图片
     pictures = db.relationship(
@@ -58,6 +59,7 @@ class Shop(db.Model):
             'about_me': self.about_me,
             'additional_price': self.additional_price,
             'filter_city': self.filter_city,
+            'min_spend': self.min_spend,
             # 👇 使用转换后的图片数据 (而不是原始对象)
             'pictures': pics_data,
             'can_edit': False

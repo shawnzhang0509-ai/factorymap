@@ -31,6 +31,7 @@ export interface Shop {
   about_me?: string;          // 技师/店铺自我介绍
   additional_price?: string;  // 额外价格说明
   filter_city?: string;
+  min_spend?: number;
 }
 
 // 🔥 创建店铺时的数据类型 (用于 AdminPanel 表单)
@@ -52,4 +53,5 @@ export interface ShopCreate {
   additional_price?: string;
   /** Admin-only map region chip */
   filter_city?: string;
+  min_spend?: number;
 }

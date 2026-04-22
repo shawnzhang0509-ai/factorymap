@@ -11,6 +11,16 @@ from app.models.association import ShopPicture
 from app.services.upload_service import save_uploaded_file
 
 
+def _parse_min_spend(raw):
+    if raw is None or raw == '':
+        return None
+    try:
+        n = int(float(str(raw).strip()))
+        return n if n > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
 class ShopRepository:
     def __init__(self):
         self.db = db
@@ -55,6 +65,7 @@ class ShopRepository:
             about_me=data.get('about_me', ''),
             additional_price=data.get('additional_price', ''),
             filter_city=(data.get('filter_city') or '').strip() or None,
+            min_spend=_parse_min_spend(data.get('min_spend')),
         )
 
         self.db.session.add(shop)
@@ -96,6 +107,8 @@ class ShopRepository:
         if 'filter_city' in data:
             fc = data.get('filter_city')
             shop.filter_city = (fc or '').strip() or None
+        if 'min_spend' in data:
+            shop.min_spend = _parse_min_spend(data.get('min_spend'))
 
         # 3. 更新布尔字段
         new_girls = data.get("new_girls_last_15_days")
