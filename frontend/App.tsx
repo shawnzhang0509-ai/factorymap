@@ -24,6 +24,8 @@ import BadgeFilterDropdown from './components/BadgeFilterDropdown';
 
 const STORAGE_KEY = 'nz_massage_shops_v1';
 const SHARE_TOOLTIP_SEEN_KEY = 'nz_share_tooltip_seen_v1';
+/** Session only: show location FAB hint again on new visit / new tab */
+const LOCATION_FAB_TIP_DISMISSED_KEY = 'nz_location_fab_tip_dismissed_session';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 /** Align list payload with UI: picture URLs, and badge_text fallback from new_girls_last_15_days */
@@ -98,6 +100,17 @@ const HomePage: React.FC = () => {
   });
   const [showAgeModal, setShowAgeModal] = useState(false);
   const [showShareTooltip, setShowShareTooltip] = useState(false);
+  const [showLocationFabTip, setShowLocationFabTip] = useState(false);
+
+  const dismissLocationFabTip = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    try {
+      sessionStorage.setItem(LOCATION_FAB_TIP_DISMISSED_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+    setShowLocationFabTip(false);
+  };
 
   const dismissShareTooltip = () => {
     try {
@@ -199,6 +212,17 @@ const HomePage: React.FC = () => {
       return;
     }
     setShowShareTooltip(true);
+  }, [isAgeVerified, showAgeModal]);
+
+  // Location FAB: hint each session until user taps the bubble (sessionStorage — new visit shows again)
+  useEffect(() => {
+    if (!isAgeVerified || showAgeModal) return;
+    try {
+      if (sessionStorage.getItem(LOCATION_FAB_TIP_DISMISSED_KEY) === '1') return;
+    } catch {
+      return;
+    }
+    setShowLocationFabTip(true);
   }, [isAgeVerified, showAgeModal]);
 
   // 3. ✅ 新增：处理确认函数 (独立函数)
@@ -935,7 +959,37 @@ const HomePage: React.FC = () => {
             )}
           </div>
 
-          <button type="button" onClick={requestLocation} className={`p-3 rounded-full shadow-lg ${userLocation ? 'bg-blue-500 text-white' : 'bg-white'}`}><Navigation className="w-6 h-6" /></button>
+          <div className="relative flex items-center justify-end">
+            {showLocationFabTip && (
+              <button
+                type="button"
+                onClick={dismissLocationFabTip}
+                className="absolute right-[calc(100%+10px)] top-1/2 -translate-y-1/2 w-[min(calc(100vw-5.5rem),240px)] z-[1002] text-left cursor-pointer"
+                aria-label="Dismiss location tip"
+              >
+                <div className="relative rounded-2xl bg-white px-3.5 py-2.5 shadow-xl border border-sky-100/90 pointer-events-auto">
+                  <div
+                    className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-r border-t border-sky-100/90 rotate-45"
+                    aria-hidden
+                  />
+                  <p className="text-sm font-bold text-sky-700 leading-tight pr-1">Find who is near your place</p>
+                  <p className="text-[11px] text-gray-600 leading-snug mt-1 pr-1">
+                    Tap the blue arrow to turn on your location; we will show listings around you on the map.
+                  </p>
+                  <p className="text-[10px] text-sky-500 font-semibold mt-1.5 pr-1">Tap here to close</p>
+                </div>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={requestLocation}
+              className={`relative p-3 rounded-full shadow-lg ${userLocation ? 'bg-blue-500 text-white' : 'bg-white'}`}
+              title="Use my location"
+              aria-label="Use my location for nearby"
+            >
+              <Navigation className="w-6 h-6" />
+            </button>
+          </div>
           <button
             type="button"
             onClick={handleCreateAdClick}
