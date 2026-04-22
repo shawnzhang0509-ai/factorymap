@@ -11,6 +11,8 @@ interface MapComponentProps {
   onMarkerClick: (shop: Shop) => void;
   userLocation: UserLocation | null;
   radiusKm?: number;
+  /** Bump when the parent wants the map to pan/zoom to selectedShop (skip for ShopCard-only selection while anchor is SHOP) */
+  mapPanNonce?: number;
 }
 
 // ... (createShopIcon 函数保持不变) ...
@@ -131,7 +133,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
   selectedShop, 
   onMarkerClick,
   userLocation,
-  radiusKm = 0 
+  radiusKm = 0,
+  mapPanNonce = 0,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -148,9 +151,16 @@ const MapComponent: React.FC<MapComponentProps> = ({
       attributionControl: false
     }).setView([center.lat, center.lng], zoom);
 
+    const el = mapRef.current.getContainer();
+    el.style.background = 'transparent';
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
     }).addTo(mapRef.current);
+
+    requestAnimationFrame(() => {
+      mapRef.current?.invalidateSize({ animate: false });
+    });
 
     return () => {
       if (mapRef.current) {
@@ -224,23 +234,76 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   }, [shops, selectedShop, userLocation]);
 
-  // 选中店铺时的自动聚焦
+  // Pan/zoom to selection only when parent bumps mapPanNonce (fast fly; ShopCard in SHOP-anchor mode skips bump)
   useEffect(() => {
-    if (selectedShop && mapRef.current) {
-      mapRef.current.flyTo([selectedShop.lat, selectedShop.lng], 12.5);
-    }
-  }, [selectedShop]);
+    if (!selectedShop || !mapRef.current || mapPanNonce === 0) return;
+    const map = mapRef.current;
+
+    const safeFlyTo = (lat: number, lng: number, z: number) => {
+      try {
+        map.flyTo([lat, lng], z, { duration: 0.35, easeLinearity: 0.5 });
+      } catch {
+        try {
+          map.setView([lat, lng], z);
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+
+    const latOk = (v: number) => Number.isFinite(v) && Math.abs(v) <= 90;
+    const lngOk = (v: number) => Number.isFinite(v) && Math.abs(v) <= 180;
+    const rk = Number(radiusKm);
+    const canFitRing =
+      rk > 0 &&
+      userLocation &&
+      latOk(userLocation.lat) &&
+      lngOk(userLocation.lng);
+
+    const run = () => {
+      if (!mapRef.current) return;
+      const m = mapRef.current;
+
+      if (canFitRing && userLocation) {
+        try {
+          const ring = L.circle([userLocation.lat, userLocation.lng], {
+            radius: rk * 1000,
+          });
+          const bounds = ring.getBounds();
+          if (!bounds.isValid()) {
+            safeFlyTo(selectedShop.lat, selectedShop.lng, 11);
+            return;
+          }
+          m.flyToBounds(bounds, {
+            padding: L.point(48, 48),
+            maxZoom: 11.75,
+            duration: 0.35,
+          });
+        } catch {
+          safeFlyTo(selectedShop.lat, selectedShop.lng, 11);
+        }
+        return;
+      }
+
+      if (latOk(selectedShop.lat) && lngOk(selectedShop.lng)) {
+        safeFlyTo(selectedShop.lat, selectedShop.lng, 11);
+      }
+    };
+
+    requestAnimationFrame(run);
+  }, [selectedShop, mapPanNonce, radiusKm, userLocation]);
 
   return (
     <div 
       ref={mapContainerRef} 
-      className="w-full h-full overflow-hidden"
+      className="w-full h-full overflow-hidden bg-transparent"
       style={{ 
         maxWidth: '100%',
         width: '100%',
         boxSizing: 'border-box',
         position: 'relative', 
-        zIndex: 0 
+        zIndex: 0,
+        background: 'transparent',
       }} 
     />
   );

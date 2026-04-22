@@ -72,11 +72,23 @@ html, body {
   padding: 0;
   width: 100%;
   height: 100%;
+  background-color: transparent;
   /* 关键：禁止整个页面出现横向滚动条，强制切断溢出 */
   overflow-x: hidden !important; 
   /* 关键：禁止边缘弹性滚动，防止布局抖动 */
   overscroll-behavior-x: none; 
   box-sizing: border-box;
+}
+
+/* Leaflet default #ddd shows as a “white bar” above the map under overlays */
+.leaflet-container {
+  background: transparent !important;
+}
+
+/* Mitigate sub-pixel hairline gaps between OSM tiles on some mobile GPUs */
+.leaflet-tile-container img.leaflet-tile {
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 /* 确保所有元素继承盒模型，防止 padding 撑大宽度 */
