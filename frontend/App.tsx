@@ -894,13 +894,17 @@ const HomePage: React.FC = () => {
       <div
         className={`absolute left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-3 pointer-events-none bg-transparent ${badgeBarTopClass}`}
       >
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-center gap-2 py-0 pointer-events-auto">
-          <BadgeFilterDropdown
-            allTags={allTags}
-            selectedTags={selectedTags}
-            onChange={setSelectedTags}
-          />
-          <MinSpendFilterDropdown value={maxMinSpend} onChange={setMaxMinSpend} />
+        <div className="max-w-7xl mx-auto w-full flex flex-nowrap items-center justify-between gap-1.5 px-1 sm:px-2 py-0 pointer-events-auto">
+          <div className="min-w-0 flex-1 flex items-center justify-start">
+            <BadgeFilterDropdown
+              allTags={allTags}
+              selectedTags={selectedTags}
+              onChange={setSelectedTags}
+            />
+          </div>
+          <div className="shrink-0 flex items-center justify-end">
+            <MinSpendFilterDropdown value={maxMinSpend} onChange={setMaxMinSpend} />
+          </div>
         </div>
       </div>
 

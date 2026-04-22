@@ -196,16 +196,16 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
     );
 
   return (
-    <div className="relative pointer-events-auto">
+    <div className="relative max-w-full min-w-0 pointer-events-auto">
       <button
         ref={triggerRef}
         type="button"
         onClick={handleTriggerClick}
-        className="inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/40 px-3 py-1 text-xs font-semibold text-gray-800 shadow-sm backdrop-blur-sm hover:bg-white/55"
+        className="inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full border border-white/50 bg-white/40 px-2 py-0.5 text-[11px] font-semibold text-gray-800 shadow-sm backdrop-blur-sm hover:bg-white/55 sm:gap-2 sm:px-3 sm:py-1 sm:text-xs"
       >
-        <span>Badges</span>
-        <span className="text-gray-500">{summaryText}</span>
-        <span className="text-gray-400">{open ? '▲' : '▼'}</span>
+        <span className="shrink-0">Badges</span>
+        <span className="min-w-0 truncate text-gray-500">{summaryText}</span>
+        <span className="shrink-0 text-gray-400">{open ? '▲' : '▼'}</span>
       </button>
       {overlay}
     </div>
