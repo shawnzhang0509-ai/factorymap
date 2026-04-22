@@ -28,6 +28,23 @@ def _ensure_shop_filter_city_column():
     except Exception as e:
         print(f"⚠️ shop.filter_city schema check skipped: {e}")
 
+
+def _ensure_shop_min_spend_column():
+    try:
+        engine = db.engine
+        insp = inspect(engine)
+        if not insp.has_table("shop"):
+            return
+        names = {c["name"] for c in insp.get_columns("shop")}
+        if "min_spend" in names:
+            return
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE shop ADD COLUMN min_spend INTEGER"))
+        print("✅ Added missing column shop.min_spend (schema sync)")
+    except Exception as e:
+        print(f"⚠️ shop.min_spend schema check skipped: {e}")
+
+
 def create_app():
     app = Flask(__name__)
 
@@ -97,6 +114,7 @@ def create_app():
     with app.app_context():
         db.create_all()
         _ensure_shop_filter_city_column()
+        _ensure_shop_min_spend_column()
 
     @app.route('/')
     def home():

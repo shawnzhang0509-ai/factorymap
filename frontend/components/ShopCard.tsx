@@ -5,6 +5,7 @@ import { Shop, ShopEdit } from '../types';
 import { dmsToDecimal } from '../utils/geoUtils';
 import { getTagStyle } from '../constants';
 import { REGION_OPTIONS } from '../constants/filterRegions';
+import { MIN_SPEND_OPTIONS } from '../constants/minSpend';
 
 interface ShopCardProps {
   shop: Shop;
@@ -211,7 +212,12 @@ const ShopCard: React.FC<ShopCardProps> = ({
     about_me: shop.about_me || '', 
     additional_price: shop.additional_price || '',
     filter_city: (shop as Shop & { filter_city?: string }).filter_city || '',
-    
+    min_spend:
+      typeof (shop as Shop & { min_spend?: number }).min_spend === 'number' &&
+      (shop as Shop & { min_spend?: number }).min_spend! > 0
+        ? (shop as Shop & { min_spend?: number }).min_spend
+        : undefined,
+
     newPictures: [],
     removePictureIds: [],
   });
@@ -289,6 +295,10 @@ const ShopCard: React.FC<ShopCardProps> = ({
     if (isAdmin) {
       formData.append('filter_city', editData.filter_city || '');
     }
+    if (shop.can_edit) {
+      const ms = editData.min_spend;
+      formData.append('min_spend', ms != null && ms > 0 ? String(ms) : '');
+    }
     formData.append('new_girls_last_15_days', editData.new_girls_last_15_days ? '1' : '0');
     formData.append('remove_picture_ids', editData.removePictureIds.join(','));
 
@@ -330,6 +340,10 @@ const ShopCard: React.FC<ShopCardProps> = ({
         return { ...pic, url: fullUrl };
       });
 
+      const minSpendVal =
+        updatedShop.min_spend != null && Number(updatedShop.min_spend) > 0
+          ? Number(updatedShop.min_spend)
+          : undefined;
       const finalData = {
         ...updatedShop,
         pictures: fixedPictures,
@@ -339,6 +353,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
         about_me: editData.about_me,
         additional_price: editData.additional_price,
         filter_city: editData.filter_city || '',
+        min_spend: minSpendVal,
       };
 
       onSave(finalData);
@@ -350,6 +365,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
         about_me: editData.about_me,
         additional_price: editData.additional_price,
         filter_city: editData.filter_city || '',
+        min_spend: minSpendVal,
       }));
       setIsEditing(false);
       setShowConfirmSave(false);
@@ -509,6 +525,32 @@ const ShopCard: React.FC<ShopCardProps> = ({
                     </option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {shop.can_edit && (
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1">MIN. SPEND (NZD)</label>
+                <select
+                  value={editData.min_spend != null && editData.min_spend > 0 ? String(editData.min_spend) : ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setEditData({
+                      ...editData,
+                      min_spend: v ? Number(v) : undefined,
+                    });
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                >
+                  <option value="">— Not set —</option>
+                  {MIN_SPEND_OPTIONS.map((n) => (
+                    <option key={n} value={n}>
+                      ${n}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-gray-500 mt-1">Shown on the map card when set</p>
               </div>
             )}
 
@@ -899,6 +941,11 @@ const ShopCard: React.FC<ShopCardProps> = ({
             </span>
           ) : null}
         </div>
+        {shop.min_spend != null && shop.min_spend > 0 && (
+          <p className="text-[10px] font-semibold text-gray-600 sm:text-[11px]">
+            Min. from ${shop.min_spend}
+          </p>
+        )}
         <div className="flex items-start gap-1.5 text-gray-500 text-xs leading-tight h-8 overflow-hidden">
           <MapPin className="w-3 h-3 flex-shrink-0 mt-0.5 text-rose-400" />
           <p className="line-clamp-2">{shop.address}</p>
