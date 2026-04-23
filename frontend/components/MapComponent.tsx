@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, memo } from 'react';
 import L from 'leaflet';
 import { Shop, UserLocation } from '../types';
 
@@ -126,7 +126,7 @@ const createShopIcon = (shop: Shop, isSelected: boolean): L.DivIcon => {
 };
 
 // ✅ 2. 组件签名接收 zoom
-const MapComponent: React.FC<MapComponentProps> = ({ 
+const MapComponentInner: React.FC<MapComponentProps> = ({ 
   shops, 
   center, 
   zoom = 5.5, // ✅ 接收 zoom，默认 5.5
@@ -354,5 +354,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     />
   );
 };
+
+const MapComponent = memo(MapComponentInner);
 
 export default MapComponent;
