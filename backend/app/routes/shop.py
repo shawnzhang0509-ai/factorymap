@@ -189,6 +189,16 @@ def update_shop_by_name(shop_name):
         current_app.logger.error(f"Update shop by name failed: {str(e)}", exc_info=True)
         return jsonify({"error": "更新失败", "details": str(e)}), 500
 
+@shop_bp.route('/detail/<path:slug>', methods=['GET'])
+@shop_bp.route('/shop/detail/<path:slug>', methods=['GET'])
+def get_shop_detail(slug):
+    """Single shop for public detail page — avoids downloading full /shops list."""
+    shop = service.get_shop_by_slug_or_id(slug)
+    if not shop:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify(shop.to_dict())
+
+
 @shop_bp.route('/shops', methods=['GET'])
 @shop_bp.route('/shop/shops', methods=['GET'])
 def get_all_shops():

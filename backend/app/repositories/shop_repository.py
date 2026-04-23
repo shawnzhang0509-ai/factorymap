@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 from flask import current_app
 from sqlalchemy import or_
@@ -9,6 +10,11 @@ from app.models.shop import Shop
 from app.models.picture import Picture
 from app.models.association import ShopPicture
 from app.services.upload_service import save_uploaded_file
+
+
+def _slug_from_shop_name(name: str) -> str:
+    """Match frontend: name.toLowerCase().replace(/[^a-z0-9]+/g, '-')"""
+    return re.sub(r'[^a-z0-9]+', '-', (name or '').lower())
 
 
 def _parse_min_spend(raw):
@@ -42,6 +48,33 @@ class ShopRepository:
     def get_by_id(self, shop_id):
         """根据 ID 获取店铺"""
         return self.db.session.query(Shop).get(shop_id)
+
+    def get_shop_by_slug_or_id(self, identifier: str):
+        """
+        Public detail: resolve slug (from name) or numeric id with minimal work.
+        Two-step query avoids loading every shop's pictures like GET /shops.
+        """
+        ident = (identifier or '').strip()
+        if not ident:
+            return None
+        if ident.isdigit():
+            return (
+                self.db.session.query(Shop)
+                .options(joinedload(Shop.pictures))
+                .filter(Shop.id == int(ident))
+                .first()
+            )
+        want = ident.lower()
+        rows = self.db.session.query(Shop.id, Shop.name).all()
+        for sid, name in rows:
+            if _slug_from_shop_name(name or '') == want:
+                return (
+                    self.db.session.query(Shop)
+                    .options(joinedload(Shop.pictures))
+                    .filter(Shop.id == sid)
+                    .first()
+                )
+        return None
 
     def add_shop(self, data=None, files=None):
         """添加新店铺及关联图片"""

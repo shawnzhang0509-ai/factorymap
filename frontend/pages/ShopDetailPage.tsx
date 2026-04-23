@@ -46,22 +46,59 @@ const ShopDetailPage: React.FC = () => {
   };
 
   useEffect(() => {
+    if (!slug) {
+      setLoading(false);
+      return;
+    }
     const fetchShop = async () => {
       try {
         const token = localStorage.getItem('auth_token') || '';
-        const res = await fetch(`${API_BASE_URL}/shops`, {
+        const detailUrl = `${API_BASE_URL}/shop/detail/${encodeURIComponent(slug)}`;
+        const res = await fetch(detailUrl, {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
-        const data = await res.json();
-        
+        if (res.ok) {
+          const raw = await res.json();
+          const pictures =
+            raw.pictures?.map((pic: any) => ({
+              ...pic,
+              url:
+                pic.url && pic.url.startsWith('/files/')
+                  ? `${API_BASE_URL}${pic.url}`
+                  : pic.url,
+            })) || [];
+          setShop({ ...raw, pictures } as Shop);
+          return;
+        }
+        if (res.status === 404) {
+          setShop(null);
+          return;
+        }
+        // Fallback for older backends without /shop/detail
+        const listRes = await fetch(`${API_BASE_URL}/shops`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        const data = await listRes.json();
         const found = data.find((s: any) => {
           const generatedSlug = s.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
           return generatedSlug === slug || s.id.toString() === slug;
         });
-        
-        setShop(found || null);
+        if (found) {
+          const pictures =
+            found.pictures?.map((pic: any) => ({
+              ...pic,
+              url:
+                pic.url && pic.url.startsWith('/files/')
+                  ? `${API_BASE_URL}${pic.url}`
+                  : pic.url,
+            })) || [];
+          setShop({ ...found, pictures } as Shop);
+        } else {
+          setShop(null);
+        }
       } catch (e) {
-        console.error("Fetch error:", e);
+        console.error('Fetch error:', e);
+        setShop(null);
       } finally {
         setLoading(false);
       }

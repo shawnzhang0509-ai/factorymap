@@ -10,6 +10,9 @@ class ShopService:
     def search_shop(self, content):
         return self.repo.get_all_shops(content=content)  # 注意：方法名也建议统一
 
+    def get_shop_by_slug_or_id(self, identifier):
+        return self.repo.get_shop_by_slug_or_id(identifier)
+
     def add_shop(self, data, files):
         return self.repo.add_shop(data, files)
 
