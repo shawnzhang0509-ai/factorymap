@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, startTransition } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 // 1. 引入刚才写的汉堡包按钮
 import HamburgerButton from './components/HamburgerButton'; 
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -392,7 +392,7 @@ const HomePage: React.FC = () => {
   const isPausedByUser = useRef(false);
   /** Coalesce list translate updates to one frame per tick (INP) */
   const listTranslateRafId = useRef<number | null>(null);
-  /** Coalesce drawer height state updates during drag (INP) */
+  /** At most one drawer height React commit per animation frame while dragging */
   const drawerHeightRafId = useRef<number | null>(null);
 
   const startAutoScroll = () => {
@@ -506,44 +506,51 @@ const HomePage: React.FC = () => {
 
     const anchorIsShop = useNearbyFilter && nearbyCenterType === 'SHOP';
     stopAutoScroll();
-    startTransition(() => {
-      setSelectedShop(shop);
-      if (!useNearbyFilter) {
-        setUseNearbyFilter(true);
-        setUserLocation({ lat: shop.lat, lng: shop.lng });
-        setNearbyCenterType('SHOP');
-        setNearbyCenterName(shop.name || '');
-        setRadiusKm(5);
-        setMapPanNonce((n) => n + 1);
-      } else if (!anchorIsShop) {
-        setMapPanNonce((n) => n + 1);
-      }
-      if (!isExpanded) setDrawerHeight(EXPANDED_HEIGHT);
-    });
+    setSelectedShop(shop);
+    if (!useNearbyFilter) {
+      setUseNearbyFilter(true);
+      setUserLocation({ lat: shop.lat, lng: shop.lng });
+      setNearbyCenterType('SHOP');
+      setNearbyCenterName(shop.name || '');
+      setRadiusKm(5);
+      setMapPanNonce((n) => n + 1);
+    } else if (!anchorIsShop) {
+      setMapPanNonce((n) => n + 1);
+    }
+    if (drawerHeightRef.current <= COLLAPSED_HEIGHT + 50) {
+      drawerHeightRef.current = EXPANDED_HEIGHT;
+      setDrawerHeight(EXPANDED_HEIGHT);
+    }
   };
 
-  const handleMarkerClick = (shop: Shop) => {
+  const markerClickHandlerRef = useRef<(shop: Shop) => void>(() => {});
+  markerClickHandlerRef.current = (shop: Shop) => {
     if (selectedShop && selectedShop.id === shop.id) {
       const slug = shop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
       navigate(`/shop/${slug}`);
       return;
     }
     stopAutoScroll();
-    startTransition(() => {
-      setSelectedShop(shop);
-      if (!useNearbyFilter) {
-        setUseNearbyFilter(true);
-        setUserLocation({ lat: shop.lat, lng: shop.lng });
-        setNearbyCenterType('SHOP');
-        setNearbyCenterName(shop.name || '');
-      } else if (nearbyCenterType === 'SHOP') {
-        setUserLocation({ lat: shop.lat, lng: shop.lng });
-        setNearbyCenterName(shop.name || '');
-      }
-      setMapPanNonce((n) => n + 1);
-      if (!isExpanded) setDrawerHeight(EXPANDED_HEIGHT);
-    });
+    setSelectedShop(shop);
+    if (!useNearbyFilter) {
+      setUseNearbyFilter(true);
+      setUserLocation({ lat: shop.lat, lng: shop.lng });
+      setNearbyCenterType('SHOP');
+      setNearbyCenterName(shop.name || '');
+    } else if (nearbyCenterType === 'SHOP') {
+      setUserLocation({ lat: shop.lat, lng: shop.lng });
+      setNearbyCenterName(shop.name || '');
+    }
+    setMapPanNonce((n) => n + 1);
+    if (drawerHeightRef.current <= COLLAPSED_HEIGHT + 50) {
+      drawerHeightRef.current = EXPANDED_HEIGHT;
+      setDrawerHeight(EXPANDED_HEIGHT);
+    }
   };
+
+  const handleMarkerClickStable = useCallback((shop: Shop) => {
+    markerClickHandlerRef.current(shop);
+  }, []);
 
   // Drawer Logic
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -576,6 +583,15 @@ const HomePage: React.FC = () => {
     drawerHeightRafId.current = null;
     setDrawerHeight(drawerHeightRef.current);
   };
+
+  const scheduleDrawerHeightCommit = () => {
+    if (drawerHeightRafId.current != null) return;
+    drawerHeightRafId.current = requestAnimationFrame(() => {
+      drawerHeightRafId.current = null;
+      flushDrawerHeight();
+    });
+  };
+
   const handleDrawerTouchMove = (e: React.TouchEvent) => {
     if (!isDraggingDrawer.current) return;
     const deltaY = startY.current - e.touches[0].clientY;
@@ -583,9 +599,7 @@ const HomePage: React.FC = () => {
     if (newHeight < COLLAPSED_HEIGHT) newHeight = COLLAPSED_HEIGHT;
     if (newHeight > EXPANDED_HEIGHT) newHeight = EXPANDED_HEIGHT;
     drawerHeightRef.current = newHeight;
-    if (drawerHeightRafId.current == null) {
-      drawerHeightRafId.current = requestAnimationFrame(flushDrawerHeight);
-    }
+    scheduleDrawerHeightCommit();
   };
   const handleDrawerTouchEnd = () => {
     if (!isDraggingDrawer.current) return;
@@ -595,6 +609,7 @@ const HomePage: React.FC = () => {
       drawerHeightRafId.current = null;
     }
     const next = resolveDrawerSnap(drawerHeightRef.current);
+    drawerHeightRef.current = next;
     setDrawerHeight(next);
     const willExpand = next === EXPANDED_HEIGHT;
     if (willExpand && !selectedShop) resumeTimerRef.current = setTimeout(() => { if (!isDraggingList.current) startAutoScroll(); }, 500);
@@ -624,9 +639,7 @@ const HomePage: React.FC = () => {
     if (newHeight < COLLAPSED_HEIGHT) newHeight = COLLAPSED_HEIGHT;
     if (newHeight > EXPANDED_HEIGHT) newHeight = EXPANDED_HEIGHT;
     drawerHeightRef.current = newHeight;
-    if (drawerHeightRafId.current == null) {
-      drawerHeightRafId.current = requestAnimationFrame(flushDrawerHeight);
-    }
+    scheduleDrawerHeightCommit();
   };
   const handleDrawerMouseUp = () => {
     if (!isDraggingDrawer.current) return;
@@ -638,6 +651,7 @@ const HomePage: React.FC = () => {
     window.removeEventListener('mousemove', handleDrawerMouseMove);
     window.removeEventListener('mouseup', handleDrawerMouseUp);
     const next = resolveDrawerSnap(drawerHeightRef.current);
+    drawerHeightRef.current = next;
     setDrawerHeight(next);
     const willExpand = next === EXPANDED_HEIGHT;
     if (willExpand && !selectedShop) resumeTimerRef.current = setTimeout(() => { if (!isDraggingList.current) startAutoScroll(); }, 500);
@@ -958,7 +972,7 @@ const HomePage: React.FC = () => {
             zoom={zoom}
             selectedShop={selectedShop}
             userLocation={userLocation}
-            onMarkerClick={handleMarkerClick}
+            onMarkerClick={handleMarkerClickStable}
             radiusKm={useNearbyFilter && userLocation ? radiusKm : 0}
             mapPanNonce={mapPanNonce}
           />
