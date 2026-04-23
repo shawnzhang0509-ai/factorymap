@@ -139,7 +139,14 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<{ [key: string]: L.Marker }>({});
+  /** Track selection per marker so we do not rebuild all icons on every tap */
+  const markerSelectionRef = useRef<{ [key: string]: boolean }>({});
+  const userMarkerRef = useRef<L.Marker | null>(null);
   const rangeCircleRef = useRef<L.Circle | null>(null);
+  const onMarkerClickRef = useRef(onMarkerClick);
+  onMarkerClickRef.current = onMarkerClick;
+
+  const shopMarkerKey = (s: Shop) => (s.id ? String(s.id) : `${s.name}-${s.lat}`);
 
   // 初始化地图
   useEffect(() => {
@@ -163,8 +170,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
     });
 
     return () => {
+      userMarkerRef.current = null;
+      markersRef.current = {};
+      markerSelectionRef.current = {};
       if (mapRef.current) {
         mapRef.current.remove();
+        mapRef.current = null;
       }
     };
   }, []); // 只在挂载时运行一次
@@ -203,34 +214,69 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   }, [radiusKm, userLocation]);
 
-  // 处理标记 (Markers)
+  // Shop markers: incremental updates (INP — avoid removing/recreating every marker on selection change)
   useEffect(() => {
-    if (!mapRef.current) return;
+    const map = mapRef.current;
+    if (!map) return;
 
-    Object.values(markersRef.current).forEach(m => m.remove());
-    markersRef.current = {};
+    const nextKeys = new Set(shops.map(shopMarkerKey));
 
-    shops.forEach(shop => {
-      const key = shop.id ? String(shop.id) : `${shop.name}-${shop.lat}`;
-      const isSelected = selectedShop?.id === shop.id || (selectedShop?.name === shop.name && selectedShop?.lat === shop.lat);
-      
-      const icon = createShopIcon(shop, isSelected);
+    for (const key of Object.keys(markersRef.current)) {
+      if (!nextKeys.has(key)) {
+        markersRef.current[key].remove();
+        delete markersRef.current[key];
+        delete markerSelectionRef.current[key];
+      }
+    }
 
-      const marker = L.marker([shop.lat, shop.lng], { icon })
-        .addTo(mapRef.current!)
-        .on('click', () => onMarkerClick(shop));
-
-      markersRef.current[key] = marker;
+    const userIcon = L.divIcon({
+      className: 'user-icon',
+      html: `<div class="w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-md animate-pulse"></div>`,
+      iconSize: [16, 16],
+      iconAnchor: [8, 8],
     });
 
-    if (userLocation && mapRef.current) {
-      const userIcon = L.divIcon({
-        className: 'user-icon',
-        html: `<div class="w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-md animate-pulse"></div>`,
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
-      });
-      L.marker([userLocation.lat, userLocation.lng], { icon: userIcon, zIndexOffset: 1000 }).addTo(mapRef.current);
+    shops.forEach((shop) => {
+      const key = shopMarkerKey(shop);
+      const isSelected =
+        selectedShop?.id === shop.id ||
+        (!!selectedShop &&
+          selectedShop.name === shop.name &&
+          selectedShop.lat === shop.lat);
+
+      let marker = markersRef.current[key];
+      if (!marker) {
+        marker = L.marker([shop.lat, shop.lng], { icon: createShopIcon(shop, isSelected) })
+          .addTo(map)
+          .on('click', () => onMarkerClickRef.current(shop));
+        markersRef.current[key] = marker;
+        markerSelectionRef.current[key] = isSelected;
+        return;
+      }
+
+      const ll = marker.getLatLng();
+      if (ll.lat !== shop.lat || ll.lng !== shop.lng) {
+        marker.setLatLng([shop.lat, shop.lng]);
+      }
+
+      if (markerSelectionRef.current[key] !== isSelected) {
+        marker.setIcon(createShopIcon(shop, isSelected));
+        markerSelectionRef.current[key] = isSelected;
+      }
+    });
+
+    if (userLocation) {
+      if (!userMarkerRef.current) {
+        userMarkerRef.current = L.marker([userLocation.lat, userLocation.lng], {
+          icon: userIcon,
+          zIndexOffset: 1000,
+        }).addTo(map);
+      } else {
+        userMarkerRef.current.setLatLng([userLocation.lat, userLocation.lng]);
+      }
+    } else if (userMarkerRef.current) {
+      userMarkerRef.current.remove();
+      userMarkerRef.current = null;
     }
   }, [shops, selectedShop, userLocation]);
 
