@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, startTransition } from 'react';
 // 1. 引入刚才写的汉堡包按钮
 import HamburgerButton from './components/HamburgerButton'; 
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -390,6 +390,10 @@ const HomePage: React.FC = () => {
   const animationFrameId = useRef<number | null>(null);
   const resumeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isPausedByUser = useRef(false);
+  /** Coalesce list translate updates to one frame per tick (INP) */
+  const listTranslateRafId = useRef<number | null>(null);
+  /** Coalesce drawer height state updates during drag (INP) */
+  const drawerHeightRafId = useRef<number | null>(null);
 
   const startAutoScroll = () => {
     if (animationFrameId.current || !isExpanded || isPausedByUser.current || selectedShop) return;
@@ -443,23 +447,37 @@ const HomePage: React.FC = () => {
     window.addEventListener('touchmove', handleListTouchMove, { passive: false }); 
     window.addEventListener('touchend', handleListMouseUp);
   };
+  const flushListTranslate = () => {
+    listTranslateRafId.current = null;
+    const el = scrollRef.current;
+    if (el) el.style.transform = `translateX(${currentTranslateX.current}px)`;
+  };
   const handleListMouseMove = (e: MouseEvent) => {
     if (!isDraggingList.current || !scrollRef.current) return;
     const walk = e.clientX - startX.current;
     currentTranslateX.current += walk;
-    scrollRef.current.style.transform = `translateX(${currentTranslateX.current}px)`;
-    startX.current = e.clientX; 
+    startX.current = e.clientX;
+    if (listTranslateRafId.current == null) {
+      listTranslateRafId.current = requestAnimationFrame(flushListTranslate);
+    }
   };
   const handleListTouchMove = (e: TouchEvent) => {
     if (!isDraggingList.current || !scrollRef.current) return;
     const walk = e.touches[0].clientX - startX.current;
     currentTranslateX.current += walk;
-    scrollRef.current.style.transform = `translateX(${currentTranslateX.current}px)`;
     startX.current = e.touches[0].clientX;
+    if (listTranslateRafId.current == null) {
+      listTranslateRafId.current = requestAnimationFrame(flushListTranslate);
+    }
   };
   const handleListMouseUp = () => {
     if (!isDraggingList.current) return;
     isDraggingList.current = false;
+    if (listTranslateRafId.current != null) {
+      cancelAnimationFrame(listTranslateRafId.current);
+      listTranslateRafId.current = null;
+      flushListTranslate();
+    }
     if (scrollRef.current) { scrollRef.current.style.cursor = 'grab'; scrollRef.current.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)'; }
     window.removeEventListener('mousemove', handleListMouseMove);
     window.removeEventListener('mouseup', handleListMouseUp);
@@ -487,20 +505,21 @@ const HomePage: React.FC = () => {
     }
 
     const anchorIsShop = useNearbyFilter && nearbyCenterType === 'SHOP';
-    setSelectedShop(shop);
-    if (!useNearbyFilter) {
-      setUseNearbyFilter(true);
-      setUserLocation({ lat: shop.lat, lng: shop.lng });
-      setNearbyCenterType('SHOP');
-      setNearbyCenterName(shop.name || '');
-      setRadiusKm(5);
-      setMapPanNonce((n) => n + 1);
-    } else if (!anchorIsShop) {
-      setMapPanNonce((n) => n + 1);
-    }
-    // ShopCard while "nearby around this shop": keep filter center; do not bump mapPanNonce
-    if (!isExpanded) setDrawerHeight(EXPANDED_HEIGHT);
     stopAutoScroll();
+    startTransition(() => {
+      setSelectedShop(shop);
+      if (!useNearbyFilter) {
+        setUseNearbyFilter(true);
+        setUserLocation({ lat: shop.lat, lng: shop.lng });
+        setNearbyCenterType('SHOP');
+        setNearbyCenterName(shop.name || '');
+        setRadiusKm(5);
+        setMapPanNonce((n) => n + 1);
+      } else if (!anchorIsShop) {
+        setMapPanNonce((n) => n + 1);
+      }
+      if (!isExpanded) setDrawerHeight(EXPANDED_HEIGHT);
+    });
   };
 
   const handleMarkerClick = (shop: Shop) => {
@@ -509,19 +528,21 @@ const HomePage: React.FC = () => {
       navigate(`/shop/${slug}`);
       return;
     }
-    setSelectedShop(shop);
-    if (!useNearbyFilter) {
-      setUseNearbyFilter(true);
-      setUserLocation({ lat: shop.lat, lng: shop.lng });
-      setNearbyCenterType('SHOP');
-      setNearbyCenterName(shop.name || '');
-    } else if (nearbyCenterType === 'SHOP') {
-      setUserLocation({ lat: shop.lat, lng: shop.lng });
-      setNearbyCenterName(shop.name || '');
-    }
-    setMapPanNonce((n) => n + 1);
-    if (!isExpanded) setDrawerHeight(EXPANDED_HEIGHT);
     stopAutoScroll();
+    startTransition(() => {
+      setSelectedShop(shop);
+      if (!useNearbyFilter) {
+        setUseNearbyFilter(true);
+        setUserLocation({ lat: shop.lat, lng: shop.lng });
+        setNearbyCenterType('SHOP');
+        setNearbyCenterName(shop.name || '');
+      } else if (nearbyCenterType === 'SHOP') {
+        setUserLocation({ lat: shop.lat, lng: shop.lng });
+        setNearbyCenterName(shop.name || '');
+      }
+      setMapPanNonce((n) => n + 1);
+      if (!isExpanded) setDrawerHeight(EXPANDED_HEIGHT);
+    });
   };
 
   // Drawer Logic
@@ -551,6 +572,10 @@ const HomePage: React.FC = () => {
     startHeight.current = drawerHeightRef.current;
     stopAutoScroll();
   };
+  const flushDrawerHeight = () => {
+    drawerHeightRafId.current = null;
+    setDrawerHeight(drawerHeightRef.current);
+  };
   const handleDrawerTouchMove = (e: React.TouchEvent) => {
     if (!isDraggingDrawer.current) return;
     const deltaY = startY.current - e.touches[0].clientY;
@@ -558,11 +583,17 @@ const HomePage: React.FC = () => {
     if (newHeight < COLLAPSED_HEIGHT) newHeight = COLLAPSED_HEIGHT;
     if (newHeight > EXPANDED_HEIGHT) newHeight = EXPANDED_HEIGHT;
     drawerHeightRef.current = newHeight;
-    setDrawerHeight(newHeight);
+    if (drawerHeightRafId.current == null) {
+      drawerHeightRafId.current = requestAnimationFrame(flushDrawerHeight);
+    }
   };
   const handleDrawerTouchEnd = () => {
     if (!isDraggingDrawer.current) return;
     isDraggingDrawer.current = false;
+    if (drawerHeightRafId.current != null) {
+      cancelAnimationFrame(drawerHeightRafId.current);
+      drawerHeightRafId.current = null;
+    }
     const next = resolveDrawerSnap(drawerHeightRef.current);
     setDrawerHeight(next);
     const willExpand = next === EXPANDED_HEIGHT;
@@ -593,11 +624,17 @@ const HomePage: React.FC = () => {
     if (newHeight < COLLAPSED_HEIGHT) newHeight = COLLAPSED_HEIGHT;
     if (newHeight > EXPANDED_HEIGHT) newHeight = EXPANDED_HEIGHT;
     drawerHeightRef.current = newHeight;
-    setDrawerHeight(newHeight);
+    if (drawerHeightRafId.current == null) {
+      drawerHeightRafId.current = requestAnimationFrame(flushDrawerHeight);
+    }
   };
   const handleDrawerMouseUp = () => {
     if (!isDraggingDrawer.current) return;
     isDraggingDrawer.current = false;
+    if (drawerHeightRafId.current != null) {
+      cancelAnimationFrame(drawerHeightRafId.current);
+      drawerHeightRafId.current = null;
+    }
     window.removeEventListener('mousemove', handleDrawerMouseMove);
     window.removeEventListener('mouseup', handleDrawerMouseUp);
     const next = resolveDrawerSnap(drawerHeightRef.current);
