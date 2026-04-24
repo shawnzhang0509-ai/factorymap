@@ -854,11 +854,15 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
               let optimizedUrl = rawUrl;
 
-              // 1️⃣ 如果是 http 开头，直接使用（可能是 CDN 链接）
+              // 1️⃣ 如果是 http 开头，直接使用（CDN：Cloudinary、Cloudflare Images、等）
               if (rawUrl && rawUrl.startsWith('http')) {
                 optimizedUrl = rawUrl;
-              } 
-              // 2️⃣ 如果是 Cloudinary 相对路径 (/upload/...)
+              }
+              // 2️⃣ Cloudflare Images delivery (defensive if ever stored relative)
+              else if (rawUrl && rawUrl.includes('imagedelivery.net')) {
+                optimizedUrl = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl.replace(/^\/\//, '')}`;
+              }
+              // 3️⃣ Cloudinary 相对路径 (/upload/...)
               else if (rawUrl && rawUrl.includes('/upload/')) {
                 const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
                 if (cloudName) {
@@ -868,25 +872,25 @@ const ShopCard: React.FC<ShopCardProps> = ({
                   optimizedUrl = `${baseUrl}/image/upload/${transformParams}/${pathAfterUpload}`;
                 } else {
                   console.warn('[ShopCard] Missing VITE_CLOUDINARY_CLOUD_NAME, falling back to API');
-                  // 如果没配 Cloudinary，掉落到下面的 API 拼接逻辑
-                  optimizedUrl = rawUrl; 
+                  optimizedUrl = rawUrl;
                 }
               }
-              
-              // 3️⃣ 【核心修复】其他所有相对路径，强制拼接 API_BASE_URL
+
+              // 4️⃣ 其他相对路径 → API uploads
               if (!optimizedUrl.startsWith('http')) {
                 const apiBase = import.meta.env.VITE_API_BASE_URL || '';
-                
-                // ✅ 绝对防御：确保 base 有结尾斜杠，path 有开头斜杠（只保留一个）
                 const base = apiBase.endsWith('/') ? apiBase : `${apiBase}/`;
                 const path = optimizedUrl.startsWith('/') ? optimizedUrl.slice(1) : optimizedUrl;
-                
                 optimizedUrl = `${base}uploads/${path}`;
               }
 
-              // 4️⃣ 添加时间戳防止缓存
-              const separator = optimizedUrl.includes('?') ? '&' : '?';
-              const finalUrl = `${optimizedUrl}${separator}_t=${Date.now()}`;
+              // 5️⃣ 缓存破坏：仅对自管 API 路径；CDN URL 保持可缓存（利于 LCP/INP）
+              const isCdn =
+                optimizedUrl.includes('imagedelivery.net') ||
+                optimizedUrl.includes('res.cloudinary.com');
+              const finalUrl = isCdn
+                ? optimizedUrl
+                : `${optimizedUrl}${optimizedUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`;
 
               console.log(`[ShopCard] ✅ Final URL ${idx}:`, finalUrl);
 
