@@ -179,27 +179,12 @@ class ShopRepository:
             except (ValueError, TypeError):
                 pass
 
-        # B. 如果有新文件上传，清空该店铺旧的图片关联
+        # B. 新上传的图片：追加到现有列表（不再清空全部旧图；避免“加一张顶掉全部”）
         if files:
-            current_app.logger.info(f"检测到新图片，准备替换店铺 {shop_id} 的所有图片...")
-            
-            all_shop_pictures = (
-                self.db.session.query(ShopPicture)
-                .filter(ShopPicture.shop_id == shop.id)
-                .all()
-            )
-            
-            for sp in all_shop_pictures:
-                pic = self.db.session.query(Picture).get(sp.picture_id)
-                if pic:
-                    self.db.session.delete(pic) # 仅删 DB 记录
-                self.db.session.delete(sp)
-            
-            current_app.logger.info("旧图片关联已清空，准备存入新图片。")
+            current_app.logger.info(f"检测到 {len(files)} 张新图片，追加到店铺 {shop_id}…")
 
-        # C. 上传新图片
         for f in files:
-            file_name, _ = save_uploaded_file(f) # 返回 https://res.cloudinary.com/...
+            file_name, _ = save_uploaded_file(f)
             picture = Picture(url=file_name)
             self.db.session.add(picture)
             self.db.session.flush()
