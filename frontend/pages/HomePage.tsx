@@ -173,9 +173,11 @@ const HomePage: React.FC = () => {
     if (lat && lng) {
       setUserLocation({ lat: parseFloat(lat), lng: parseFloat(lng) });
       setUseNearbyFilter(true);
-      
+
       if (focusId) {
-        const target = shops.find(s => s.id.toString() === focusId || s.id === parseInt(focusId));
+        const target = shops.find(
+          (s) => s.id.toString() === focusId || s.id === parseInt(focusId, 10)
+        );
         if (target) {
           setSelectedShop(target);
           setNearbyCenterType('SHOP');
@@ -190,6 +192,20 @@ const HomePage: React.FC = () => {
       } else {
         setNearbyCenterType('USER');
         setNearbyCenterName('');
+      }
+    } else if (focusId) {
+      // My Ads "Edit" uses /?focus=<id>&edit=1 without lat/lng — still open card + edit modal
+      const target = shops.find(
+        (s) => s.id.toString() === focusId || s.id === parseInt(focusId, 10)
+      );
+      if (target) {
+        setSelectedShop(target);
+        setMapPanNonce((n) => n + 1);
+        setTimeout(() => setDrawerHeight(EXPANDED_HEIGHT), 100);
+        if (autoEditKey && handledAutoEditKeyRef.current !== autoEditKey) {
+          setPendingEditShopId(target.id);
+          handledAutoEditKeyRef.current = autoEditKey;
+        }
       }
     }
     if (!autoEditKey) {
