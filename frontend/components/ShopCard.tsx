@@ -22,6 +22,8 @@ interface ShopCardProps {
   onAutoEditHandled?: () => void;
   /** Home: pause drawer / horizontal list gestures while any shop edit modal is open */
   onEditModalChange?: (isOpen: boolean) => void;
+  /** Lowercase trimmed names of other shops (for duplicate-name hint while editing) */
+  otherShopNamesLower?: string[];
 }
 
 type GestureState = 'idle' | 'tap' | 'scroll' | 'drag';
@@ -40,6 +42,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
   autoOpenEdit,
   onAutoEditHandled,
   onEditModalChange,
+  otherShopNamesLower = [],
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
@@ -221,6 +224,11 @@ const ShopCard: React.FC<ShopCardProps> = ({
     newPictures: [],
     removePictureIds: [],
   });
+
+  const editNameKey = (editData.name || '').trim().toLowerCase();
+  const nameClashesWithOther =
+    editNameKey.length > 0 && otherShopNamesLower.includes(editNameKey);
+
  const handleActionClick = (type: 'sms' | 'call', e: React.MouseEvent) => {
     // 1. 阻止默认行为和事件冒泡（防止触发父元素的点击事件）
     e.preventDefault();
@@ -321,8 +329,12 @@ const ShopCard: React.FC<ShopCardProps> = ({
         let errorMsg = `服务器拒绝请求 (Status: ${res.status})`;
         try {
           const jsonErr = JSON.parse(responseText);
-          if (jsonErr.message) errorMsg += `\n详情：${jsonErr.message}`;
-        } catch (e) {}
+          if (jsonErr.error) errorMsg = String(jsonErr.error);
+          else if (jsonErr.message) errorMsg += `\n详情：${jsonErr.message}`;
+          else if (jsonErr.details) errorMsg += `\n详情：${jsonErr.details}`;
+        } catch (e) {
+          /* plain text body */
+        }
         alert(`❌ 更新失败:\n${errorMsg}`);
         return;
       }
@@ -454,9 +466,16 @@ const ShopCard: React.FC<ShopCardProps> = ({
                 value={editData.name || ''}
                 onChange={(e) => setEditData({ ...editData, name: e.target.value })}
                 onClick={(e) => e.stopPropagation()} // 👈 已补全
-                className="w-full font-bold text-lg p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                className={`w-full font-bold text-lg p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${
+                  nameClashesWithOther ? 'ring-2 ring-amber-400' : ''
+                }`}
                 autoFocus
               />
+              {nameClashesWithOther && (
+                <p className="text-[11px] text-amber-700 font-semibold mt-1">
+                  Another shop already uses this name (ignoring spaces and capitals). Save will be rejected until you change it.
+                </p>
+              )}
             </div>
 
             {/* ADDRESS */}
@@ -706,10 +725,17 @@ const ShopCard: React.FC<ShopCardProps> = ({
               Cancel
             </button>
             <button
+              type="button"
+              disabled={nameClashesWithOther}
               onClick={(e) => {
+                if (nameClashesWithOther) return;
                 runGuardedAction(e, () => setShowConfirmSave(true));
               }}
-              className="flex-1 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 shadow-lg shadow-green-200 transition-all active:scale-95"
+              className={`flex-1 py-3 font-bold rounded-xl shadow-lg transition-all active:scale-95 ${
+                nameClashesWithOther
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
+                  : 'bg-green-500 text-white hover:bg-green-600 shadow-green-200'
+              }`}
             >
               Save Changes
             </button>
@@ -734,6 +760,11 @@ const ShopCard: React.FC<ShopCardProps> = ({
               <p className="text-sm text-gray-600 mb-4">
                 Are you sure you want to save changes to "<strong>{editData.name}</strong>"?
               </p>
+              {nameClashesWithOther && (
+                <p className="text-xs text-amber-700 font-semibold mb-3">
+                  Fix the shop name first — it matches another listing.
+                </p>
+              )}
               <div className="flex gap-3">
                 <button 
                   onClick={(e) => {
@@ -744,12 +775,19 @@ const ShopCard: React.FC<ShopCardProps> = ({
                   Cancel
                 </button>
                 <button 
+                  type="button"
+                  disabled={nameClashesWithOther}
                   onClick={(e) => {
+                    if (nameClashesWithOther) return;
                     runGuardedAction(e, () => {
                       handleSave();
                     });
                   }} 
-                  className="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+                  className={`flex-1 py-2 font-bold rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                    nameClashesWithOther
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-green-500 hover:bg-green-600 text-white'
+                  }`}
                 >
                   <Check className="w-4 h-4" /> Confirm
                 </button>

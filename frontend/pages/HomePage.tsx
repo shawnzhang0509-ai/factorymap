@@ -296,6 +296,11 @@ const HomePage: React.FC = () => {
     return Array.from(tagSet).sort();
   }, [shops]);
 
+  const existingShopNamesLower = useMemo(
+    () => shops.map((s) => (s.name || '').trim().toLowerCase()).filter(Boolean),
+    [shops]
+  );
+
   /** Below two region rows: badge + min. spend filters */
   const badgeBarTopClass = 'top-[calc(env(safe-area-inset-top,0px)+3.95rem)]';
 
@@ -1228,6 +1233,9 @@ const HomePage: React.FC = () => {
                               onDelete={handleDeleteShop}
                               isAdmin={isAdmin}
                               canDelete={isAdmin}
+                              otherShopNamesLower={existingShopNamesLower.filter(
+                                (n) => n !== (shop.name || '').trim().toLowerCase()
+                              )}
                               onSave={(updated) => {
                                 const safeUpdated = { ...updated, pictures: updated.pictures ? [...updated.pictures] : [], new_girls_last_15_days: !!updated.new_girls_last_15_days, badge_text: updated.badge_text || (updated.new_girls_last_15_days ? 'New' : '') };
                                 setShops(prev => prev.map(s => s.id === safeUpdated.id ? safeUpdated : s));
@@ -1310,7 +1318,13 @@ const HomePage: React.FC = () => {
         </div>
       </div>
 
-      {showCreateAd && <AdminPanel onAddShop={handleAddShop} onClose={() => setShowCreateAd(false)} />}
+      {showCreateAd && (
+        <AdminPanel
+          onAddShop={handleAddShop}
+          onClose={() => setShowCreateAd(false)}
+          existingShopNamesLower={existingShopNamesLower}
+        />
+      )}
       {showLogin && <LoginPanel onLoginSuccess={(payload) => { handleLoginSuccess(payload); setShowLogin(false); }} onClose={() => setShowLogin(false)} />}
       {previewShop && <ImagePreviewModal shop={previewShop} index={previewIndex} onChangeIndex={setPreviewIndex} onClose={() => setPreviewShop(null)} />}
       
