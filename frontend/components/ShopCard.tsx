@@ -454,10 +454,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
           <div
             className="p-4 overflow-y-auto flex-1 min-h-0 overscroll-contain space-y-4 custom-scrollbar touch-pan-y"
-            onScroll={() => {
-              markScrollInteraction();
-            }}
-            onWheel={markScrollInteraction}
           >
             {/* NAME */}
             <div>
