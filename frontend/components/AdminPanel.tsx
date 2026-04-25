@@ -7,9 +7,11 @@ import { MIN_SPEND_OPTIONS } from '../constants/minSpend';
 interface AdminPanelProps {
   onAddShop: (shop: Shop) => void;
   onClose: () => void;
+  /** Lowercase trimmed names of existing shops (duplicate name blocked server-side too) */
+  existingShopNamesLower?: string[];
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose, existingShopNamesLower = [] }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   
@@ -32,10 +34,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
 
+  const nameKey = (newShop.name || '').trim().toLowerCase();
+  const nameDuplicate =
+    nameKey.length > 0 && existingShopNamesLower.includes(nameKey);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newShop.name || !newShop.address || !newShop.phone || !newShop.lat || !newShop.lng) {
       setError("Please fill in all required fields (Name, Address, Phone, Location).");
+      return;
+    }
+    if (nameDuplicate) {
+      setError('This shop name is already used. Please choose a different name (same spelling with different spacing/capitalization also counts as duplicate).');
       return;
     }
 
@@ -85,7 +95,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
       const result = await res.json();
 
       if (!res.ok) {
-        setError(result.error || "Failed to add shop. Please try again.");
+        setError(
+          result.error ||
+            (res.status === 409
+              ? 'This shop name is already in use.'
+              : 'Failed to add shop. Please try again.')
+        );
         setIsSubmitting(false);
         return;
       }
@@ -151,11 +166,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Shop Name *</label>
               <input
                 required
-                className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all"
+                className={`w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all ${
+                  nameDuplicate ? 'ring-2 ring-amber-400' : ''
+                }`}
                 value={newShop.name}
                 onChange={e => setNewShop({ ...newShop, name: e.target.value })}
                 placeholder="e.g. Relaxation Spa"
               />
+              {nameDuplicate && (
+                <p className="text-[11px] text-amber-700 font-semibold mt-1">
+                  This name matches an existing shop (ignoring spaces and capital letters). Saving will be rejected — pick a unique name.
+                </p>
+              )}
             </div>
 
             {/* Address */}

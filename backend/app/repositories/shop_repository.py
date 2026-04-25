@@ -17,6 +17,11 @@ def _slug_from_shop_name(name: str) -> str:
     return re.sub(r'[^a-z0-9]+', '-', (name or '').lower())
 
 
+def _shop_name_key(name) -> str:
+    """Case-insensitive trimmed name for duplicate checks (matches slug stability goal)."""
+    return (name or "").strip().lower()
+
+
 def _parse_min_spend(raw):
     if raw is None or raw == '':
         return None
@@ -30,6 +35,18 @@ def _parse_min_spend(raw):
 class ShopRepository:
     def __init__(self):
         self.db = db
+
+    def _existing_shop_id_for_name(self, name: str, exclude_shop_id=None):
+        want = _shop_name_key(name)
+        if not want:
+            return None
+        q = self.db.session.query(Shop.id, Shop.name)
+        for sid, sname in q.all():
+            if exclude_shop_id is not None and sid == exclude_shop_id:
+                continue
+            if _shop_name_key(sname) == want:
+                return sid
+        return None
 
     def get_all_shops(self, content=None):
         """根据关键词搜索店铺"""
@@ -81,6 +98,10 @@ class ShopRepository:
         data = data or {}
         files = files or []
 
+        dup_id = self._existing_shop_id_for_name(data.get("name"))
+        if dup_id is not None:
+            raise ValueError("A shop with this name already exists. Choose a different name.")
+
         # 处理布尔字段
         new_girls = data.get("new_girls_last_15_days", False)
         if isinstance(new_girls, str):
@@ -125,6 +146,11 @@ class ShopRepository:
         shop = self.get_by_id(shop_id)
         if not shop:
             raise ValueError("Shop not found")
+
+        if "name" in data:
+            dup_id = self._existing_shop_id_for_name(data.get("name"), exclude_shop_id=shop_id)
+            if dup_id is not None:
+                raise ValueError("A shop with this name already exists. Choose a different name.")
 
         # 1. 更新基础字段
         fields = ["name", "address", "phone", "lat", "lng", "badge_text"]

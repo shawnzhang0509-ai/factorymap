@@ -73,8 +73,11 @@ def add_shop():
         return jsonify({"error": "Only admin can create new ads"}), 403
 
     data = _sanitize_shop_payload_for_role(request.form.to_dict(), auth_user)
-    files = request.files.getlist("pictures") 
-    shop = service.add_shop(data=data, files=files)
+    files = request.files.getlist("pictures")
+    try:
+        shop = service.add_shop(data=data, files=files)
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 409
 
     existing = ShopOwner.query.filter_by(shop_id=shop.id, user_id=auth_user.id).first()
     if not existing:
@@ -126,9 +129,15 @@ def update_shop(shop_id):
         data = _sanitize_shop_payload_for_role(request.form.to_dict(), auth_user)
         files = request.files.getlist("pictures")
         shop = service.update_shop(shop_id=shop_id, data=data, files=files)
-        
+
         # ✅ 修改：直接调用 to_dict()
         return jsonify(shop.to_dict())
+    except ValueError as ve:
+        msg = str(ve)
+        if "already exists" in msg.lower():
+            return jsonify({"error": msg}), 409
+        current_app.logger.error(f"Update shop failed: {msg}")
+        return jsonify({"error": msg}), 400
     except Exception as e:
         current_app.logger.error(f"Update shop failed: {str(e)}")
         return jsonify({"error": "更新失败", "details": str(e)}), 500
@@ -185,6 +194,11 @@ def update_shop_by_name(shop_name):
         # ✅ 修改：直接调用 to_dict()
         return jsonify(updated_shop.to_dict())
 
+    except ValueError as ve:
+        msg = str(ve)
+        if "already exists" in msg.lower():
+            return jsonify({"error": msg}), 409
+        return jsonify({"error": msg}), 400
     except Exception as e:
         current_app.logger.error(f"Update shop by name failed: {str(e)}", exc_info=True)
         return jsonify({"error": "更新失败", "details": str(e)}), 500
