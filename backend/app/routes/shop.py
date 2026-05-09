@@ -18,10 +18,14 @@ def _is_admin_user(user):
     return bool(user and user.is_admin)
 
 
+def _can_manage_all_shops(user):
+    return bool(user and (user.is_admin or user.is_ad_manager))
+
+
 def _can_edit_shop(user, shop_id):
     if not user:
         return False
-    if _is_admin_user(user):
+    if _can_manage_all_shops(user):
         return True
     owner = ShopOwner.query.filter_by(shop_id=shop_id, user_id=user.id).first()
     return owner is not None
@@ -30,7 +34,7 @@ def _can_edit_shop(user, shop_id):
 def _editable_shop_ids(user):
     if not user:
         return set()
-    if _is_admin_user(user):
+    if _can_manage_all_shops(user):
         return None  # None means all shops editable.
     owner_links = ShopOwner.query.filter_by(user_id=user.id).all()
     return {item.shop_id for item in owner_links}
@@ -42,7 +46,7 @@ def _sanitize_shop_payload_for_role(data, user):
     Non-admin users cannot set or update badge-related fields.
     """
     cleaned = dict(data or {})
-    if not _is_admin_user(user):
+    if not _can_manage_all_shops(user):
         cleaned.pop("badge_text", None)
         cleaned.pop("new_girls_last_15_days", None)
         cleaned.pop("filter_city", None)
@@ -69,8 +73,8 @@ def add_shop():
     auth_user = _require_auth_user()
     if not auth_user:
         return jsonify({"error": "Unauthorized"}), 401
-    if not _is_admin_user(auth_user):
-        return jsonify({"error": "Only admin can create new ads"}), 403
+    if not _can_manage_all_shops(auth_user):
+        return jsonify({"error": "Only admin or ad manager can create new ads"}), 403
 
     data = _sanitize_shop_payload_for_role(request.form.to_dict(), auth_user)
     files = request.files.getlist("pictures")
@@ -252,7 +256,7 @@ def get_my_shops():
 @shop_bp.route('/shop/admin/users', methods=['GET'])
 def list_users_for_admin():
     auth_user = _require_auth_user()
-    if not auth_user or not _is_admin_user(auth_user):
+    if not auth_user or not _can_manage_all_shops(auth_user):
         return jsonify({"error": "Unauthorized"}), 401
 
     users = db.session.query(User).order_by(User.username.asc()).all()
@@ -263,7 +267,7 @@ def list_users_for_admin():
 @shop_bp.route('/shop/admin/owners', methods=['GET'])
 def list_shop_owners_for_admin():
     auth_user = _require_auth_user()
-    if not auth_user or not _is_admin_user(auth_user):
+    if not auth_user or not _can_manage_all_shops(auth_user):
         return jsonify({"error": "Unauthorized"}), 401
 
     rows = (
@@ -285,7 +289,7 @@ def list_shop_owners_for_admin():
 @shop_bp.route('/shop/admin/transfer-owner', methods=['POST'])
 def transfer_shop_owner():
     auth_user = _require_auth_user()
-    if not auth_user or not _is_admin_user(auth_user):
+    if not auth_user or not _can_manage_all_shops(auth_user):
         return jsonify({"error": "Unauthorized"}), 401
 
     data = request.get_json() or {}
@@ -316,3 +320,24 @@ def transfer_shop_owner():
         "shop_id": shop_id,
         "owner": target_user.to_dict()
     })
+
+
+@shop_bp.route('/admin/users/<int:user_id>/permissions', methods=['PATCH'])
+@shop_bp.route('/shop/admin/users/<int:user_id>/permissions', methods=['PATCH'])
+def update_user_permissions(user_id):
+    auth_user = _require_auth_user()
+    if not auth_user or not _is_admin_user(auth_user):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    target_user = db.session.get(User, user_id)
+    if not target_user:
+        return jsonify({"error": "User not found"}), 404
+
+    data = request.get_json() or {}
+    if "is_ad_manager" not in data or not isinstance(data.get("is_ad_manager"), bool):
+        return jsonify({"error": "is_ad_manager must be a boolean"}), 400
+
+    target_user.is_ad_manager = bool(data["is_ad_manager"])
+    db.session.commit()
+
+    return jsonify({"success": True, "user": target_user.to_dict()})

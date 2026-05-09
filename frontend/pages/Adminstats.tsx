@@ -29,17 +29,24 @@ const AdminStats: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+  const token = localStorage.getItem('auth_token') || '';
+  const isAdmin = localStorage.getItem('is_admin') === 'true';
 
   useEffect(() => {
     const fetchAllStats = async () => {
       try {
+        if (!token || !isAdmin) {
+          throw new Error('Unauthorized');
+        }
         const params = new URLSearchParams();
         if (startDate) params.set('start_date', startDate);
         if (endDate) params.set('end_date', endDate);
         const queryString = params.toString();
         const url = `${API_BASE_URL}/stats/daily-summary${queryString ? `?${queryString}` : ''}`;
 
-        const res = await fetch(url);
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         
         if (!res.ok) throw new Error('Failed to fetch daily summary stats');
         const data = await res.json();
@@ -53,7 +60,7 @@ const AdminStats: React.FC = () => {
     };
 
     fetchAllStats();
-  }, [API_BASE_URL, startDate, endDate]);
+  }, [API_BASE_URL, isAdmin, startDate, endDate, token]);
 
   /** Must run every render — never after conditional returns (Rules of Hooks) */
   const shopAggregates = useMemo((): ShopAggregateRow[] => {

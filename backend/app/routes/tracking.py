@@ -65,11 +65,20 @@ def _is_admin_user(user):
     return bool(user and user.is_admin)
 
 
+def _require_admin_user():
+    user = get_auth_user(request)
+    if not _is_admin_user(user):
+        return None
+    return user
+
+
 def _can_view_shop_stats(user, shop_id):
     if not user:
         return False
     if _is_admin_user(user):
         return True
+    if getattr(user, "is_ad_manager", False):
+        return False
     owner = ShopOwner.query.filter_by(shop_id=shop_id, user_id=user.id).first()
     return owner is not None
 
@@ -152,6 +161,9 @@ def get_all_stats():
     使用 SQL GROUP BY 进行聚合，效率最高
     """
     try:
+        if not _require_admin_user():
+            return jsonify({"error": "Unauthorized"}), 401
+
         # Aggregate by raw stored value first, then merge in Python by normalized ID.
         # This avoids SQL type mismatch issues in legacy schemas (text vs int).
         grouped_rows = db.session.query(
@@ -282,6 +294,9 @@ def get_daily_summary():
     全店铺按天统计汇总：每行 = 某天 + 某店铺
     """
     try:
+        if not _require_admin_user():
+            return jsonify({"error": "Unauthorized"}), 401
+
         start_date = _parse_date_param(request.args.get("start_date"), "start_date")
         end_date = _parse_date_param(request.args.get("end_date"), "end_date")
         if start_date and end_date and start_date > end_date:

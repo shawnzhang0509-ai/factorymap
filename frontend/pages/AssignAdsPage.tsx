@@ -6,6 +6,7 @@ interface UserItem {
   id: number;
   username: string;
   is_admin: boolean;
+  is_ad_manager?: boolean;
 }
 
 interface OwnerRow {
@@ -20,6 +21,8 @@ const AssignAdsPage: React.FC = () => {
   const token = localStorage.getItem('auth_token') || '';
   const isLoggedIn = localStorage.getItem('admin_logged_in') === 'true';
   const isAdmin = localStorage.getItem('is_admin') === 'true';
+  const isAdManager = localStorage.getItem('is_ad_manager') === 'true';
+  const canManageAllAds = isAdmin || isAdManager;
 
   const [shops, setShops] = useState<Shop[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -30,7 +33,7 @@ const AssignAdsPage: React.FC = () => {
   const [savingShopId, setSavingShopId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!isLoggedIn || !token || !isAdmin) {
+    if (!isLoggedIn || !token || !canManageAllAds) {
       navigate('/');
       return;
     }
@@ -77,7 +80,7 @@ const AssignAdsPage: React.FC = () => {
     };
 
     loadData();
-  }, [API_BASE_URL, isAdmin, isLoggedIn, navigate, token]);
+  }, [API_BASE_URL, canManageAllAds, isLoggedIn, navigate, token]);
 
   const nonAdminUsers = useMemo(
     () => users.filter((u) => !u.is_admin),
@@ -123,6 +126,32 @@ const AssignAdsPage: React.FC = () => {
     }
   };
 
+  const handleToggleAdManager = async (user: UserItem) => {
+    if (!isAdmin) return;
+    const nextValue = !user.is_ad_manager;
+    try {
+      const res = await fetch(`${API_BASE_URL}/shop/admin/users/${user.id}/permissions`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ is_ad_manager: nextValue }),
+      });
+      const payload = await res.json();
+      if (!res.ok || payload.error) {
+        throw new Error(payload.error || 'Failed to update permissions');
+      }
+      setUsers((prev) =>
+        prev.map((item) =>
+          item.id === user.id ? { ...item, is_ad_manager: !!payload.user?.is_ad_manager } : item
+        )
+      );
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Permission update failed');
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-screen overflow-y-auto bg-gray-50 p-8 text-center text-gray-500">
@@ -145,7 +174,7 @@ const AssignAdsPage: React.FC = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-800">🛠 Assign Ads</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Admin tool: assign ad edit ownership to a user. Admin always keeps full edit access.
+              Admin/ad manager tool: assign ad edit ownership to a user. Admin and ad managers can edit all ads.
             </p>
           </div>
           <Link
@@ -155,6 +184,33 @@ const AssignAdsPage: React.FC = () => {
             Back to Home
           </Link>
         </div>
+
+        {isAdmin && (
+          <div className="bg-white rounded-lg shadow border border-gray-200/80 p-4 mb-6">
+            <h2 className="text-lg font-bold text-gray-800 mb-2">Ad manager permissions</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Ad managers can create/edit all ads and use Assign Ads, but cannot view stats or delete shop cards.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {users
+                .filter((u) => !u.is_admin)
+                .map((u) => (
+                  <label
+                    key={u.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  >
+                    <span className="font-medium text-gray-700">{u.username}</span>
+                    <input
+                      type="checkbox"
+                      checked={!!u.is_ad_manager}
+                      onChange={() => handleToggleAdManager(u)}
+                      className="h-4 w-4 accent-rose-500"
+                    />
+                  </label>
+                ))}
+            </div>
+          </div>
+        )}
 
         <div className="bg-white rounded-lg shadow overflow-x-auto touch-scroll-x" style={{ WebkitOverflowScrolling: 'touch' }}>
           <table className="min-w-[900px] w-full divide-y divide-gray-200">

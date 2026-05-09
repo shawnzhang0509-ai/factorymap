@@ -6,19 +6,23 @@ type SidebarMenuProps = {
   onClose: () => void;
   onAuthChanged?: () => void;
   isAdmin?: boolean;
+  isAdManager?: boolean;
 };
 
-const SidebarMenu: React.FC<SidebarMenuProps> = ({ isOpen, onClose, onAuthChanged, isAdmin = false }) => {
+const SidebarMenu: React.FC<SidebarMenuProps> = ({ isOpen, onClose, onAuthChanged, isAdmin = false, isAdManager = false }) => {
   if (!isOpen) return null;
 
   const isLoggedIn = localStorage.getItem('admin_logged_in') === 'true';
   const username = localStorage.getItem('admin_username') || '';
+  const canManageAllAds = isAdmin || isAdManager;
 
   const handleLogout = () => {
     localStorage.removeItem('admin_logged_in');
     localStorage.removeItem('admin_username');
     localStorage.removeItem('auth_token');
     localStorage.removeItem('is_admin');
+    localStorage.removeItem('is_ad_manager');
+    window.dispatchEvent(new Event('auth_changed'));
     onAuthChanged?.();
     onClose();
   };
@@ -51,18 +55,18 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({ isOpen, onClose, onAuthChange
               </Link>
             </li>
             {isAdmin && (
-              <>
                 <li className="mb-2">
                   <Link to="/admin/stats" onClick={onClose} className="block text-lg font-medium text-gray-800 hover:text-gray-600">
                     Stats Overview
                   </Link>
                 </li>
+            )}
+            {canManageAllAds && (
                 <li className="mb-2">
                   <Link to="/admin/assign-ads" onClick={onClose} className="block text-lg font-medium text-gray-800 hover:text-gray-600">
                     Assign Ads
                   </Link>
                 </li>
-              </>
             )}
             <li className="mb-2">
               <Link to="/about" onClick={onClose} className="block text-lg font-medium text-gray-800 hover:text-gray-600">
@@ -81,6 +85,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({ isOpen, onClose, onAuthChange
               <div className="space-y-2">
                 <p className="text-xs text-gray-500">
                   Signed in as: <span className="font-semibold text-gray-700">{username || 'Unknown'}</span>
+                  {isAdmin ? ' (admin)' : isAdManager ? ' (ad manager)' : ''}
                 </p>
                 <button
                   onClick={handleLogout}

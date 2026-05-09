@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { X, Lock } from 'lucide-react';
 
 interface LoginModalProps {
-  onLoginSuccess: (payload: { username: string; token: string; isAdmin: boolean }) => void;
+  onLoginSuccess: (payload: { username: string; token: string; isAdmin: boolean; isAdManager: boolean }) => void;
   onClose: () => void;
 }
 
@@ -43,12 +43,15 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
       if (data.success) {
         const token = data.token || '';
         const isAdmin = !!data.user?.is_admin;
+        const isAdManager = !!data.user?.is_ad_manager;
         const resolvedUsername = data.user?.username || username;
         localStorage.setItem('admin_logged_in', 'true');
         localStorage.setItem('admin_username', resolvedUsername);
         localStorage.setItem('auth_token', token);
         localStorage.setItem('is_admin', isAdmin ? 'true' : 'false');
-        onLoginSuccess({ username: resolvedUsername, token, isAdmin });
+        localStorage.setItem('is_ad_manager', isAdManager ? 'true' : 'false');
+        window.dispatchEvent(new Event('auth_changed'));
+        onLoginSuccess({ username: resolvedUsername, token, isAdmin, isAdManager });
         onClose();
       } else {
         setError(data.error || 'Invalid username or password');

@@ -13,6 +13,7 @@ const MyAdsPage: React.FC = () => {
   const token = localStorage.getItem('auth_token') || '';
   const isLoggedIn = localStorage.getItem('admin_logged_in') === 'true';
   const isAdmin = localStorage.getItem('is_admin') === 'true';
+  const isAdManager = localStorage.getItem('is_ad_manager') === 'true';
 
   useEffect(() => {
     if (!isLoggedIn || !token) {
@@ -64,9 +65,14 @@ const MyAdsPage: React.FC = () => {
             <p className="text-sm text-gray-500 mt-1">
               User: <span className="font-medium">{username || 'Unknown'}</span> · Total: {total}
             </p>
-            {!isAdmin && (
+            {!isAdmin && !isAdManager && (
               <p className="text-xs text-amber-700 mt-2">
                 You can only edit ads assigned to your account by admin.
+              </p>
+            )}
+            {isAdManager && !isAdmin && (
+              <p className="text-xs text-emerald-700 mt-2">
+                Ad manager access: you can edit all ads, but stats and shop deletion stay admin-only.
               </p>
             )}
           </div>
@@ -93,7 +99,7 @@ const MyAdsPage: React.FC = () => {
               {shops.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                    {isAdmin
+                    {isAdmin || isAdManager
                       ? 'No ads found.'
                       : 'No ads are assigned to your account yet. Please contact admin for assignment.'}
                   </td>
