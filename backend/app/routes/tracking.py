@@ -61,6 +61,12 @@ def _parse_date_param(value, field_name):
         raise ValueError(f"Invalid {field_name}, expected YYYY-MM-DD")
 
 
+def _date_key(value):
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
 def _is_admin_user(user):
     return bool(user and user.is_admin)
 
@@ -259,7 +265,7 @@ def get_shop_daily_stats(shop_id):
         for row in rows:
             if row.stat_date is None:
                 continue
-            date_key = row.stat_date.isoformat()
+            date_key = _date_key(row.stat_date)
             count = int(row.count or 0)
             if row.action_type == "sms":
                 by_date[date_key]["sms"] += count
@@ -326,7 +332,7 @@ def get_daily_summary():
                 continue
             normalized = _normalize_shop_id(row.raw_shop_id)
             shop_key = normalized if normalized is not None else row.raw_shop_id
-            key = (row.stat_date.isoformat(), shop_key)
+            key = (_date_key(row.stat_date), shop_key)
             count = int(row.count or 0)
             if row.action_type == "sms":
                 aggregated[key]["sms"] += count
