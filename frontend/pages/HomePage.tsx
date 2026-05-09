@@ -133,6 +133,8 @@ const HomePage: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(() => typeof window !== 'undefined' && localStorage.getItem("admin_logged_in") === "true");
   const [username, setUsername] = useState<string | null>(() => typeof window !== 'undefined' ? localStorage.getItem('admin_username') : null);
   const [isAdmin, setIsAdmin] = useState(() => typeof window !== 'undefined' && localStorage.getItem('is_admin') === 'true');
+  const [isAdManager, setIsAdManager] = useState(() => typeof window !== 'undefined' && localStorage.getItem('is_ad_manager') === 'true');
+  const canManageAllAds = isAdmin || isAdManager;
 
   const [previewShop, setPreviewShop] = useState<Shop | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
@@ -779,24 +781,30 @@ const HomePage: React.FC = () => {
     );
   };
 
-  const handleLoginSuccess = (payload: { username: string; token: string; isAdmin: boolean }) => {
-    const { username: u, token, isAdmin: adminFlag } = payload;
+  const handleLoginSuccess = (payload: { username: string; token: string; isAdmin: boolean; isAdManager: boolean }) => {
+    const { username: u, token, isAdmin: adminFlag, isAdManager: managerFlag } = payload;
     setIsLoggedIn(true);
     setUsername(u);
     setIsAdmin(adminFlag);
+    setIsAdManager(managerFlag);
     localStorage.setItem("admin_logged_in", "true");
     localStorage.setItem('admin_username', u);
     localStorage.setItem('auth_token', token || '');
     localStorage.setItem('is_admin', adminFlag ? 'true' : 'false');
+    localStorage.setItem('is_ad_manager', managerFlag ? 'true' : 'false');
+    window.dispatchEvent(new Event('auth_changed'));
   };
   const handleLogout = () => {
     setIsLoggedIn(false);
     setUsername(null);
     setIsAdmin(false);
+    setIsAdManager(false);
     localStorage.removeItem("admin_logged_in");
     localStorage.removeItem('admin_username');
     localStorage.removeItem('auth_token');
     localStorage.removeItem('is_admin');
+    localStorage.removeItem('is_ad_manager');
+    window.dispatchEvent(new Event('auth_changed'));
   };
 
   const handleShareMap = async () => {
@@ -939,8 +947,8 @@ const HomePage: React.FC = () => {
       setShowLogin(true);
       return;
     }
-    if (!isAdmin) {
-      alert('Only admin can create new ads. Please contact admin to get ads assigned.');
+    if (!canManageAllAds) {
+      alert('Only admin or ad manager can create new ads. Please contact admin to get ads assigned.');
       return;
     }
     setShowCreateAd(true);
@@ -1097,7 +1105,7 @@ const HomePage: React.FC = () => {
             type="button"
             onClick={handleCreateAdClick}
             className="p-3 bg-white text-rose-500 rounded-full shadow-lg"
-            title={!isLoggedIn ? 'Login to add ad' : (isAdmin ? 'Add your ad' : 'Admin-only: assign required')}
+            title={!isLoggedIn ? 'Login to add ad' : (canManageAllAds ? 'Add your ad' : 'Admin/ad manager only')}
           >
             <Plus className="w-6 h-6" />
           </button>
@@ -1231,7 +1239,7 @@ const HomePage: React.FC = () => {
                               isSelected={isSelected}
                               onClick={() => {}}
                               onDelete={handleDeleteShop}
-                              isAdmin={isAdmin}
+                              isAdmin={canManageAllAds}
                               canDelete={isAdmin}
                               otherShopNamesLower={existingShopNamesLower.filter(
                                 (n) => n !== (shop.name || '').trim().toLowerCase()

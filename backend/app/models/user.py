@@ -12,6 +12,7 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    is_ad_manager = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     shops = db.relationship(
         'Shop',
@@ -49,5 +50,6 @@ class User(db.Model):
         return {
             "id": self.id,
             "username": self.username,
-            "is_admin": self.is_admin
+            "is_admin": self.is_admin,
+            "is_ad_manager": self.is_ad_manager,
         }

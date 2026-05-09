@@ -45,6 +45,22 @@ def _ensure_shop_min_spend_column():
         print(f"⚠️ shop.min_spend schema check skipped: {e}")
 
 
+def _ensure_user_ad_manager_column():
+    try:
+        engine = db.engine
+        insp = inspect(engine)
+        if not insp.has_table("users"):
+            return
+        names = {c["name"] for c in insp.get_columns("users")}
+        if "is_ad_manager" in names:
+            return
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN is_ad_manager BOOLEAN NOT NULL DEFAULT false"))
+        print("✅ Added missing column users.is_ad_manager (schema sync)")
+    except Exception as e:
+        print(f"⚠️ users.is_ad_manager schema check skipped: {e}")
+
+
 def create_app():
     app = Flask(__name__)
 
@@ -115,6 +131,7 @@ def create_app():
         db.create_all()
         _ensure_shop_filter_city_column()
         _ensure_shop_min_spend_column()
+        _ensure_user_ad_manager_column()
 
     @app.route('/')
     def home():

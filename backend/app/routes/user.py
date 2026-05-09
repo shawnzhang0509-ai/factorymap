@@ -56,6 +56,7 @@ def register():
         return jsonify({"success": False, "error": "Username already exists"}), 409
 
     user = User(username=uname, is_admin=False)
+    user.is_ad_manager = False
     user.set_password(pwd)
     db.session.add(user)
     db.session.commit()

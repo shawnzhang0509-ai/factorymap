@@ -43,4 +43,5 @@ export interface AuthUser {
   id: number;
   username: string;
   is_admin: boolean;
+  is_ad_manager?: boolean;
 }
