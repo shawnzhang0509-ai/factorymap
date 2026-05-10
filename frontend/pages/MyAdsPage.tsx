@@ -50,15 +50,23 @@ const MyAdsPage: React.FC = () => {
       .replace(/^-+|-+$/g, '');
 
   if (loading) {
-    return <div className="min-h-screen overflow-y-auto p-8 text-center text-gray-500">Loading your ads...</div>;
+    return (
+      <div className="h-[100dvh] max-h-[100dvh] overflow-y-auto overscroll-y-contain bg-gray-50 p-8 text-center text-gray-500">
+        Loading your ads...
+      </div>
+    );
   }
   if (error) {
-    return <div className="min-h-screen overflow-y-auto p-8 text-center text-red-500">Error: {error}</div>;
+    return (
+      <div className="h-[100dvh] max-h-[100dvh] overflow-y-auto overscroll-y-contain bg-gray-50 p-8 text-center text-red-500">
+        Error: {error}
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen overflow-y-auto">
-      <div className="max-w-6xl mx-auto p-6">
+    <div className="h-[100dvh] max-h-[100dvh] overflow-y-auto overscroll-y-contain bg-gray-50">
+      <div className="max-w-6xl mx-auto p-6 pb-10">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-800">📋 My Ads</h1>
@@ -85,7 +93,7 @@ const MyAdsPage: React.FC = () => {
         </div>
 
         {/* overflow-x-auto only — overflow-hidden breaks horizontal scroll on narrow phones */}
-        <div className="bg-white rounded-lg shadow border border-gray-200/80 w-full max-w-full overflow-x-auto overscroll-x-contain touch-scroll-x [-webkit-overflow-scrolling:touch]">
+        <div className="bg-white rounded-lg shadow border border-gray-200/80 w-full max-w-full overflow-x-auto overscroll-x-contain touch-scroll-x [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y]">
           <table className="min-w-[720px] w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
