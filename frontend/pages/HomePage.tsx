@@ -1181,7 +1181,8 @@ const HomePage: React.FC = () => {
             <span className="text-xs font-bold text-gray-400 uppercase">Range</span>
             <input type="range" min="1" max="20" value={radiusKm} onChange={(e) => setRadiusKm(parseInt(e.target.value))} className="flex-1 accent-rose-500" />
             <span className="text-sm font-bold text-rose-600 w-10 text-right">{radiusKm}km</span>
-            <button 
+            <button
+              type="button"
               onClick={() => {
                 setUseNearbyFilter(false);
                 setUserLocation(null);
@@ -1191,10 +1192,12 @@ const HomePage: React.FC = () => {
                 setNearbyCenterShopId(null);
                 setCenter(NZ_CENTER);
                 setZoom(5.5);
-              }} 
-              className="ml-2 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded-lg font-bold transition"
+              }}
+              className="ml-1 sm:ml-2 rounded-full bg-gradient-to-r from-rose-500 to-orange-400 px-3 py-1.5 text-xs font-extrabold text-white shadow-lg shadow-rose-500/25 ring-2 ring-white/90 transition hover:from-rose-600 hover:to-orange-500 active:scale-95 animate-pulse"
+              aria-label="Clear nearby range filter"
+              title="Clear nearby range filter"
             >
-              ✕ Reset
+              Clear
             </button>
           </div>
         )}
