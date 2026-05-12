@@ -127,6 +127,7 @@ const HomePage: React.FC = () => {
   /** What the distance filter is centered on (GPS vs a shop as anchor) */
   const [nearbyCenterType, setNearbyCenterType] = useState<NearbyCenterType>('USER');
   const [nearbyCenterName, setNearbyCenterName] = useState('');
+  const [nearbyCenterShopId, setNearbyCenterShopId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [showLogin, setShowLogin] = useState(false);
   
@@ -184,6 +185,7 @@ const HomePage: React.FC = () => {
           setSelectedShop(target);
           setNearbyCenterType('SHOP');
           setNearbyCenterName(target.name || '');
+          setNearbyCenterShopId(target.id);
           setMapPanNonce((n) => n + 1);
           setTimeout(() => setDrawerHeight(EXPANDED_HEIGHT), 100);
           if (autoEditKey && handledAutoEditKeyRef.current !== autoEditKey) {
@@ -194,6 +196,7 @@ const HomePage: React.FC = () => {
       } else {
         setNearbyCenterType('USER');
         setNearbyCenterName('');
+        setNearbyCenterShopId(null);
       }
     } else if (focusId) {
       // My Ads "Edit" uses /?focus=<id>&edit=1 without lat/lng — still open card + edit modal
@@ -310,6 +313,10 @@ const HomePage: React.FC = () => {
     () => buildNearbyRangeTitle(nearbyCenterType, nearbyCenterName, radiusKm),
     [nearbyCenterType, nearbyCenterName, radiusKm]
   );
+  const nearbyCenterShop = useMemo(
+    () => shops.find((shop) => shop.id === nearbyCenterShopId) || null,
+    [nearbyCenterShopId, shops]
+  );
 
   const filteredShops = useMemo(() => {
     let result = [...shops];
@@ -408,6 +415,13 @@ const HomePage: React.FC = () => {
   const listTranslateRafId = useRef<number | null>(null);
   /** At most one drawer height React commit per animation frame while dragging */
   const drawerHeightRafId = useRef<number | null>(null);
+
+  const resetListToStart = () => {
+    currentTranslateX.current = 0;
+    if (scrollRef.current) {
+      scrollRef.current.style.transform = 'translateX(0px)';
+    }
+  };
 
   const startAutoScroll = () => {
     if (animationFrameId.current || !isExpanded || isPausedByUser.current || selectedShop) return;
@@ -550,11 +564,29 @@ const HomePage: React.FC = () => {
       setUserLocation({ lat: shop.lat, lng: shop.lng });
       setNearbyCenterType('SHOP');
       setNearbyCenterName(shop.name || '');
+      setNearbyCenterShopId(shop.id);
       setRadiusKm(5);
       setMapPanNonce((n) => n + 1);
     } else if (!anchorIsShop) {
       setMapPanNonce((n) => n + 1);
     }
+    if (drawerHeightRef.current <= COLLAPSED_HEIGHT + 50) {
+      drawerHeightRef.current = EXPANDED_HEIGHT;
+      setDrawerHeight(EXPANDED_HEIGHT);
+    }
+  };
+
+  const handleBackToNearbyCenterShop = (e?: React.MouseEvent<HTMLButtonElement>) => {
+    e?.stopPropagation();
+    if (!nearbyCenterShop) return;
+    stopAutoScroll();
+    setSelectedShop(nearbyCenterShop);
+    setUserLocation({ lat: nearbyCenterShop.lat, lng: nearbyCenterShop.lng });
+    setNearbyCenterType('SHOP');
+    setNearbyCenterName(nearbyCenterShop.name || '');
+    setNearbyCenterShopId(nearbyCenterShop.id);
+    resetListToStart();
+    setMapPanNonce((n) => n + 1);
     if (drawerHeightRef.current <= COLLAPSED_HEIGHT + 50) {
       drawerHeightRef.current = EXPANDED_HEIGHT;
       setDrawerHeight(EXPANDED_HEIGHT);
@@ -575,9 +607,11 @@ const HomePage: React.FC = () => {
       setUserLocation({ lat: shop.lat, lng: shop.lng });
       setNearbyCenterType('SHOP');
       setNearbyCenterName(shop.name || '');
+      setNearbyCenterShopId(shop.id);
     } else if (nearbyCenterType === 'SHOP') {
       setUserLocation({ lat: shop.lat, lng: shop.lng });
       setNearbyCenterName(shop.name || '');
+      setNearbyCenterShopId(shop.id);
     }
     setMapPanNonce((n) => n + 1);
     if (drawerHeightRef.current <= COLLAPSED_HEIGHT + 50) {
@@ -874,6 +908,7 @@ const HomePage: React.FC = () => {
         setUserLocation(newLoc);
         setNearbyCenterType('USER');
         setNearbyCenterName('');
+        setNearbyCenterShopId(null);
         
         // 2. 开启附近过滤
         setUseNearbyFilter(true); 
@@ -1153,6 +1188,7 @@ const HomePage: React.FC = () => {
                 setSelectedShop(null);
                 setNearbyCenterType('USER');
                 setNearbyCenterName('');
+                setNearbyCenterShopId(null);
                 setCenter(NZ_CENTER);
                 setZoom(5.5);
               }} 
@@ -1197,15 +1233,44 @@ const HomePage: React.FC = () => {
             {isExpanded ? (
               <div className="h-full w-full pt-2 pb-3 px-3 sm:px-4 flex flex-col min-h-0">
                 {useNearbyFilter && userLocation && (
-                  <div className="drawer-drag-handle shrink-0 mb-2 mx-auto w-full max-w-[min(100%,520px)] touch-none cursor-grab active:cursor-grabbing">
+                  <div className="drawer-drag-handle shrink-0 mb-2 mx-auto w-full max-w-[min(100%,560px)] touch-none cursor-grab active:cursor-grabbing">
                     <div
-                      className="rounded-xl border border-amber-200/90 bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 px-3 py-2 sm:py-2.5 text-center shadow-sm ring-1 ring-amber-100/80 pointer-events-none"
+                      className="rounded-2xl border border-amber-200/90 bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 px-3 py-2 sm:py-2.5 text-center shadow-sm ring-1 ring-amber-100/80 pointer-events-auto"
                       role="status"
                       aria-live="polite"
                     >
-                      <p className="text-[11px] sm:text-xs font-semibold text-amber-950 leading-snug tracking-tight">
-                        {nearbyRangeTitle}
-                      </p>
+                      {nearbyCenterType === 'SHOP' && nearbyCenterShop ? (
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                          {selectedShop?.id !== nearbyCenterShop.id && (
+                            <>
+                              <span className="text-[11px] sm:text-xs font-semibold text-amber-950 leading-snug tracking-tight">
+                                Shops surrounding
+                              </span>
+                              <button
+                                type="button"
+                                onClick={handleBackToNearbyCenterShop}
+                                className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-extrabold text-rose-600 shadow-sm ring-1 ring-rose-100 transition hover:bg-rose-50 active:scale-95"
+                                aria-label={`Back to ${nearbyCenterShop.name}`}
+                              >
+                                <MapPin size={12} />
+                                {nearbyCenterShop.name} (back to me)
+                              </button>
+                              <span className="text-[11px] sm:text-xs font-semibold text-amber-950 leading-snug tracking-tight">
+                                within {radiusKm}km
+                              </span>
+                            </>
+                          )}
+                          {selectedShop?.id === nearbyCenterShop.id && (
+                            <span className="text-[11px] sm:text-xs font-semibold text-amber-950 leading-snug tracking-tight">
+                              Shops surrounding {nearbyCenterShop.name} within {radiusKm}km
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] sm:text-xs font-semibold text-amber-950 leading-snug tracking-tight">
+                          {nearbyRangeTitle}
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
