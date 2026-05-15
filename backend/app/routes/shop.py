@@ -1,10 +1,17 @@
-from flask import Blueprint, request, jsonify, current_app
+from io import BytesIO
+
+from flask import Blueprint, request, jsonify, current_app, send_file
 from app import db
 from app.services.shop_service import ShopService
 from app.models.shop_owner import ShopOwner
 from app.models.shop import Shop
 from app.models.user import User
 from app.utils.auth import get_auth_user
+from app.services.shop_excel_import import (
+    MAX_IMPORT_ROWS,
+    build_template_workbook_bytes,
+    parse_shop_import_excel,
+)
 
 shop_bp = Blueprint('shop', __name__)
 service = ShopService()
@@ -90,6 +97,112 @@ def add_shop():
 
     # ✅ 修改：直接调用 to_dict()
     return jsonify(shop.to_dict())
+
+
+@shop_bp.route("/bulk-import-template", methods=["GET"])
+@shop_bp.route("/shop/bulk-import-template", methods=["GET"])
+def bulk_import_template():
+    auth_user = _require_auth_user()
+    if not auth_user or not _can_manage_all_shops(auth_user):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = build_template_workbook_bytes()
+    return send_file(
+        BytesIO(data),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name="factory_bulk_import_template.xlsx",
+    )
+
+
+@shop_bp.route("/bulk-import-excel", methods=["POST"])
+@shop_bp.route("/shop/bulk-import-excel", methods=["POST"])
+def bulk_import_excel():
+    auth_user = _require_auth_user()
+    if not auth_user:
+        return jsonify({"error": "Unauthorized"}), 401
+    if not _can_manage_all_shops(auth_user):
+        return jsonify({"error": "Only admin or ad manager can import"}), 403
+
+    upload = request.files.get("file")
+    if not upload or not upload.filename:
+        return jsonify({"error": 'Missing file (form field name must be "file")'}), 400
+    if not upload.filename.lower().endswith(".xlsx"):
+        return jsonify({"error": "Only .xlsx files are supported"}), 400
+
+    raw = upload.read()
+    rows, parse_err = parse_shop_import_excel(raw)
+    if parse_err:
+        return jsonify({"error": parse_err}), 400
+
+    created = []
+    skipped = []
+    errors = []
+
+    for row_num, payload in rows:
+        missing = [
+            k
+            for k in ("name", "address", "phone")
+            if not str(payload.get(k) or "").strip()
+        ]
+        if missing:
+            errors.append(
+                {
+                    "row": row_num,
+                    "message": f"Missing required fields: {', '.join(missing)}",
+                }
+            )
+            continue
+        if payload.get("lat") is None or payload.get("lng") is None:
+            errors.append(
+                {"row": row_num, "message": "lat and lng must be valid numbers"}
+            )
+            continue
+
+        data = _sanitize_shop_payload_for_role(payload, auth_user)
+        try:
+            shop = service.add_shop(data=data, files=[])
+        except ValueError as ve:
+            msg = str(ve)
+            if "already exists" in msg.lower():
+                skipped.append(
+                    {
+                        "row": row_num,
+                        "name": data.get("name"),
+                        "reason": "duplicate_name",
+                    }
+                )
+            else:
+                errors.append({"row": row_num, "message": msg})
+            continue
+        except Exception as e:
+            current_app.logger.exception("bulk import row failed")
+            errors.append({"row": row_num, "message": str(e)})
+            continue
+
+        existing = ShopOwner.query.filter_by(
+            shop_id=shop.id, user_id=auth_user.id
+        ).first()
+        if not existing:
+            db.session.add(ShopOwner(shop_id=shop.id, user_id=auth_user.id))
+            db.session.commit()
+
+        created.append(shop.to_dict())
+
+    return jsonify(
+        {
+            "created": created,
+            "skipped": skipped,
+            "errors": errors,
+            "summary": {
+                "created_count": len(created),
+                "skipped_count": len(skipped),
+                "error_count": len(errors),
+                "row_limit": MAX_IMPORT_ROWS,
+            },
+        }
+    )
+
 
 # ✅ 临时加一个测试路由
 @shop_bp.route('/list')

@@ -20,3 +20,4 @@ requests>=2.31.0
 cloudinary
 cloudinary-cli
 bleach>=6.1.0
+openpyxl>=3.1.0
