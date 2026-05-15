@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Upload, Info, DollarSign, MapPin } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { X, Upload, Info, DollarSign, MapPin, Table2, Download } from 'lucide-react';
 import { ShopCreate, Shop } from './types';
 import { REGION_OPTIONS } from '../constants/filterRegions';
 import { MIN_SPEND_OPTIONS } from '../constants/minSpend';
@@ -9,11 +9,21 @@ interface AdminPanelProps {
   onClose: () => void;
   /** Lowercase trimmed names of existing shops (duplicate name blocked server-side too) */
   existingShopNamesLower?: string[];
+  /** After bulk Excel import, parent can merge `created` into map state. */
+  onBulkShopsImported?: (shops: Shop[]) => void;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose, existingShopNamesLower = [] }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({
+  onAddShop,
+  onClose,
+  existingShopNamesLower = [],
+  onBulkShopsImported,
+}) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkSummary, setBulkSummary] = useState<string | null>(null);
+  const excelInputRef = useRef<HTMLInputElement>(null);
   
   const [newShop, setNewShop] = useState<Partial<ShopCreate>>({
     name: '',
@@ -141,6 +151,96 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose, existingSho
     }
   };
 
+  const downloadBulkTemplate = async () => {
+    setBulkSummary(null);
+    setError('');
+    const base = import.meta.env.VITE_API_BASE_URL;
+    if (!base) {
+      setError('API base URL is not configured');
+      return;
+    }
+    setBulkLoading(true);
+    try {
+      const token = localStorage.getItem('auth_token') || '';
+      const res = await fetch(`${base}/shop/bulk-import-template`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setError((j as { error?: string }).error || 'Failed to download template');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'factory_bulk_import_template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      setError('Network error downloading template');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkExcelSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setBulkSummary(null);
+    setError('');
+    const base = import.meta.env.VITE_API_BASE_URL;
+    if (!base) {
+      setError('API base URL is not configured');
+      return;
+    }
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+      setError('Please choose a .xlsx file');
+      return;
+    }
+    setBulkLoading(true);
+    try {
+      const token = localStorage.getItem('auth_token') || '';
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(`${base}/shop/bulk-import-excel`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        setError(result.error || 'Import failed');
+        return;
+      }
+      const lines = [
+        `Created: ${result.summary?.created_count ?? 0}`,
+        `Skipped (duplicate name): ${result.summary?.skipped_count ?? 0}`,
+        `Errors: ${result.summary?.error_count ?? 0}`,
+      ];
+      if (result.errors?.length) {
+        const parts = (result.errors as { row: number; message: string }[])
+          .slice(0, 5)
+          .map((x) => `row ${x.row}: ${x.message}`);
+        lines.push(`First errors: ${parts.join('; ')}`);
+      }
+      setBulkSummary(lines.join('\n'));
+      const created = result.created as Shop[] | undefined;
+      if (created?.length && onBulkShopsImported) {
+        onBulkShopsImported(created);
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Network error during import');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
       <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col">
@@ -160,6 +260,50 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose, existingSho
                 {error}
               </div>
             )}
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                <Table2 size={14} /> Bulk import (Excel)
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Download the template, fill one row per factory. Required headers:{' '}
+                <span className="font-mono text-slate-700">name, address, phone, lat, lng</span>
+                . Chinese header names like 名称 / 地址 are also accepted. Up to 500 rows per file. Pictures are not
+                imported—add them after each shop exists.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={bulkLoading}
+                  onClick={() => void downloadBulkTemplate()}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:border-rose-400 hover:text-rose-600 disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4" />
+                  Template .xlsx
+                </button>
+                <button
+                  type="button"
+                  disabled={bulkLoading}
+                  onClick={() => excelInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-500 text-white text-xs font-bold hover:bg-rose-600 disabled:opacity-50"
+                >
+                  <Table2 className="w-4 h-4" />
+                  Upload filled .xlsx
+                </button>
+                <input
+                  ref={excelInputRef}
+                  type="file"
+                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  className="hidden"
+                  onChange={(e) => void handleBulkExcelSelected(e)}
+                />
+              </div>
+              {bulkSummary && (
+                <pre className="text-[11px] text-slate-700 whitespace-pre-wrap font-sans bg-white/80 rounded-lg p-2 border border-slate-100">
+                  {bulkSummary}
+                </pre>
+              )}
+            </div>
 
             {/* Shop Name */}
             <div>
@@ -391,7 +535,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose, existingSho
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || bulkLoading}
             className={`w-full bg-rose-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-rose-200 active:scale-95 transition-transform sticky bottom-0
               ${isSubmitting ? 'opacity-70 cursor-not-allowed bg-gray-400 shadow-none' : 'hover:bg-rose-600'}`}
           >

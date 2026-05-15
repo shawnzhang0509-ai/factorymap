@@ -1399,6 +1399,20 @@ const HomePage: React.FC = () => {
           onAddShop={handleAddShop}
           onClose={() => setShowCreateAd(false)}
           existingShopNamesLower={existingShopNamesLower}
+          onBulkShopsImported={(newShops) => {
+            setShops((prev) => {
+              const seen = new Set(prev.map((s) => s.name.trim().toLowerCase()));
+              const merged = [...prev];
+              for (const s of newShops) {
+                const k = s.name.trim().toLowerCase();
+                if (!seen.has(k)) {
+                  seen.add(k);
+                  merged.push(s);
+                }
+              }
+              return merged;
+            });
+          }}
         />
       )}
       {showLogin && <LoginPanel onLoginSuccess={(payload) => { handleLoginSuccess(payload); setShowLogin(false); }} onClose={() => setShowLogin(false)} />}
