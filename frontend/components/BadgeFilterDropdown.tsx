@@ -62,8 +62,8 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
   // Empty selection = no badge filter (every shop). Do not say "All badges" — that reads like "every badge type selected".
   const summaryText =
     selectedTags.length === 0
-      ? 'All shops'
-      : `${selectedTags.length} badge${selectedTags.length === 1 ? '' : 's'}`;
+      ? 'All factories'
+      : `${selectedTags.length} credential${selectedTags.length === 1 ? '' : 's'}`;
 
   const toggleDraftTag = (tag: string) => {
     setDraftTags((prev) =>
@@ -118,7 +118,7 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
         >
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-100 p-2">
             <span id="badge-filter-title" className="text-xs font-semibold text-gray-600">
-              Filter by badge
+              Credentials & capabilities
             </span>
             <div className="flex shrink-0 items-center gap-2 text-xs">
               <button
@@ -126,7 +126,7 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
                 onClick={handleShowAllShops}
                 className="font-semibold text-gray-800 hover:text-gray-950 underline decoration-rose-400 decoration-2 underline-offset-2"
               >
-                Show all shops
+                Show all factories
               </button>
               <span className="text-gray-300" aria-hidden>
                 ·
@@ -142,7 +142,7 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
           </div>
           <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
             {allTags.length === 0 ? (
-              <p className="px-2 py-2 text-xs text-gray-400">No badges</p>
+              <p className="px-2 py-2 text-xs text-gray-400">No credential types</p>
             ) : (
               allTags.map((tag) => {
                 const checked = draftTags.includes(tag);
@@ -203,7 +203,7 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
         onClick={handleTriggerClick}
         className="inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full border border-white/50 bg-white/40 px-2 py-0.5 text-[11px] font-semibold text-gray-800 shadow-sm backdrop-blur-sm hover:bg-white/55 sm:gap-2 sm:px-3 sm:py-1 sm:text-xs"
       >
-        <span className="shrink-0">Badges</span>
+        <span className="shrink-0">Credentials</span>
         <span className="min-w-0 truncate text-gray-500">{summaryText}</span>
         <span className="shrink-0 text-gray-400">{open ? '▲' : '▼'}</span>
       </button>

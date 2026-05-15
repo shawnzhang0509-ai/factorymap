@@ -8,10 +8,11 @@ export interface ShopBase {
   phone: string;
   new_girls_last_15_days?: boolean;
   badge_text: string;
-  /** Admin-only: fixed region for map filter (see REGION_OPTIONS) */
+  /** Admin-only: economic zone (see CHINA_ECONOMIC_ZONES) */
   filter_city?: string;
-  /** Min. entry spend (NZD), optional; used for list filter and ShopCard */
+  /** MOQ / trade capacity tier 1–4 (see moqTiers) */
   min_spend?: number;
+  main_product?: string;
   can_edit?: boolean;
 }
 

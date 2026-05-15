@@ -1,10 +1,6 @@
-import os
-print(f"🚨🚨🚨 警告：正在加载文件：{os.path.abspath(__file__)} 🚨🚨🚨")
-
 # backend/app/models/shop.py
 from app import db
 
-print("💥💥💥 正在加载 shop.py 文件！路径确认！ 💥💥💥")
 
 class Shop(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -13,7 +9,7 @@ class Shop(db.Model):
     phone = db.Column(db.String(20))
     lat = db.Column(db.Float)
     lng = db.Column(db.Float)
-    badge_text = db.Column(db.String(50))
+    badge_text = db.Column(db.Text, nullable=True)
     new_girls_last_15_days = db.Column(db.Boolean, default=False)
 
     # 👇 新增这两个字段
@@ -21,6 +17,7 @@ class Shop(db.Model):
     additional_price = db.Column(db.String(200), nullable=True)
     filter_city = db.Column(db.String(80), nullable=True)
     min_spend = db.Column(db.Integer, nullable=True)
+    main_product = db.Column(db.String(200), nullable=True)
 
     # 关联图片
     pictures = db.relationship(
@@ -60,12 +57,9 @@ class Shop(db.Model):
             'additional_price': self.additional_price,
             'filter_city': self.filter_city,
             'min_spend': self.min_spend,
+            'main_product': self.main_product,
             # 👇 使用转换后的图片数据 (而不是原始对象)
             'pictures': pics_data,
             'can_edit': False
         }
-        
-        # 👇 调试打印：你可以在后端控制台看到生成的完整 JSON 数据
-        print(f"🔍 [DEBUG] to_dict 生成的数据: {data}")
-        
         return data

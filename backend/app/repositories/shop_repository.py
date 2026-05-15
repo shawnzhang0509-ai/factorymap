@@ -23,13 +23,18 @@ def _shop_name_key(name) -> str:
 
 
 def _parse_min_spend(raw):
+    """MOQ tier 1–4 stored in min_spend; legacy currency values → None."""
     if raw is None or raw == '':
         return None
     try:
         n = int(float(str(raw).strip()))
-        return n if n > 0 else None
     except (TypeError, ValueError):
         return None
+    if n == 0:
+        return None
+    if 1 <= n <= 4:
+        return n
+    return None
 
 
 class ShopRepository:
@@ -120,6 +125,7 @@ class ShopRepository:
             additional_price=data.get('additional_price', ''),
             filter_city=(data.get('filter_city') or '').strip() or None,
             min_spend=_parse_min_spend(data.get('min_spend')),
+            main_product=(data.get('main_product') or '').strip() or None,
         )
 
         self.db.session.add(shop)
@@ -168,6 +174,9 @@ class ShopRepository:
             shop.filter_city = (fc or '').strip() or None
         if 'min_spend' in data:
             shop.min_spend = _parse_min_spend(data.get('min_spend'))
+        if 'main_product' in data:
+            mp = data.get('main_product')
+            shop.main_product = (mp or '').strip() or None
 
         # 3. 更新布尔字段
         new_girls = data.get("new_girls_last_15_days")

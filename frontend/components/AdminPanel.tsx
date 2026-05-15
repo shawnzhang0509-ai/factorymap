@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { X, Upload, Info, DollarSign, MapPin, Table2, Download } from 'lucide-react';
 import { ShopCreate, Shop } from './types';
-import { REGION_OPTIONS } from '../constants/filterRegions';
-import { MIN_SPEND_OPTIONS } from '../constants/minSpend';
+import { CHINA_ECONOMIC_ZONES } from '../constants/filterRegions';
+import { MOQ_TIER_FORM_OPTIONS } from '../constants/moqTiers';
 
 interface AdminPanelProps {
   onAddShop: (shop: Shop) => void;
@@ -29,16 +29,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     name: '',
     address: '',
     phone: '',
-    lat: -36.8485,
-    lng: 174.7633,
+    lat: 31.2304,
+    lng: 121.4737,
     new_girls_last_15_days: false,
     badge_text: '',
     pictures: [],
-    // 🔥 初始化新字段
     about_me: '',
     additional_price: '',
     filter_city: '',
     min_spend: undefined,
+    main_product: '',
   });
 
   const [tags, setTags] = useState<string[]>([]);
@@ -50,12 +50,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newShop.name || !newShop.address || !newShop.phone || !newShop.lat || !newShop.lng) {
-      setError("Please fill in all required fields (Name, Address, Phone, Location).");
+    if (!newShop.name || !newShop.address || !newShop.phone || !newShop.lat || !newShop.lng || !newShop.main_product?.trim()) {
+      setError('Please fill in all required fields (Factory name, Location, Phone, Coordinates, Main product).');
       return;
     }
     if (nameDuplicate) {
-      setError('This shop name is already used. Please choose a different name (same spelling with different spacing/capitalization also counts as duplicate).');
+      setError('This factory name is already used. Please choose a different name (same spelling with different spacing/capitalization also counts as duplicate).');
       return;
     }
 
@@ -87,8 +87,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     if ((newShop.filter_city || '').trim()) {
       formData.append("filter_city", (newShop.filter_city || '').trim());
     }
-    if (newShop.min_spend != null && newShop.min_spend > 0) {
-      formData.append("min_spend", String(newShop.min_spend));
+    if (newShop.main_product?.trim()) {
+      formData.append('main_product', newShop.main_product.trim());
+    }
+    if (newShop.min_spend != null && newShop.min_spend >= 1 && newShop.min_spend <= 4) {
+      formData.append('min_spend', String(newShop.min_spend));
     }
 
     (newShop.pictures as File[] | undefined)?.forEach(file => {
@@ -108,8 +111,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         setError(
           result.error ||
             (res.status === 409
-              ? 'This shop name is already in use.'
-              : 'Failed to add shop. Please try again.')
+              ? 'This factory name is already in use.'
+              : 'Failed to add factory. Please try again.')
         );
         setIsSubmitting(false);
         return;
@@ -122,8 +125,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         name: '',
         address: '',
         phone: '',
-        lat: -36.8485,
-        lng: 174.7633,
+        lat: 31.2304,
+        lng: 121.4737,
         new_girls_last_15_days: false,
         badge_text: '',
         pictures: [],
@@ -131,6 +134,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         additional_price: '',
         filter_city: '',
         min_spend: undefined,
+        main_product: '',
       });
       setTags([]);
       setTagInput("");
@@ -245,7 +249,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     <div className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
       <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col">
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
-          <h2 className="text-xl font-bold text-gray-900">Add New Shop</h2>
+          <h2 className="text-xl font-bold text-gray-900">Add factory listing</h2>
           <button onClick={onClose} className="p-2 -mr-2 text-gray-400 hover:text-gray-600 transition">
             <X className="w-6 h-6" />
           </button>
@@ -269,7 +273,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 Download the template, fill one row per factory. Required headers:{' '}
                 <span className="font-mono text-slate-700">name, address, phone, lat, lng</span>
                 . Chinese header names like 名称 / 地址 are also accepted. Up to 500 rows per file. Pictures are not
-                imported—add them after each shop exists.
+                imported—add them after each factory exists.
               </p>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -305,9 +309,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               )}
             </div>
 
-            {/* Shop Name */}
+            {/* Factory name */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Shop Name *</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Factory name *</label>
               <input
                 required
                 className={`w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all ${
@@ -315,31 +319,31 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 }`}
                 value={newShop.name}
                 onChange={e => setNewShop({ ...newShop, name: e.target.value })}
-                placeholder="e.g. Relaxation Spa"
+                placeholder="e.g. Shenzhen Bright Electronics Co., Ltd."
               />
               {nameDuplicate && (
                 <p className="text-[11px] text-amber-700 font-semibold mt-1">
-                  This name matches an existing shop (ignoring spaces and capital letters). Saving will be rejected — pick a unique name.
+                  This name matches an existing factory (ignoring spaces and capital letters). Saving will be rejected — pick a unique name.
                 </p>
               )}
             </div>
 
             {/* Address */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Full Address *</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Location (city, province) *</label>
               <input
                 required
                 className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all"
                 value={newShop.address}
                 onChange={e => setNewShop({ ...newShop, address: e.target.value })}
-                placeholder="Street address for SMS template"
+                placeholder="e.g. No.88 Zhangjiang Rd, Pudong, Shanghai"
               />
             </div>
 
-            {/* Tags / Badges */}
+            {/* Credentials (comma → tags) */}
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                Tags / Badges
+                Credentials (buyer-facing)
               </label>
               <div 
                 className={`
@@ -382,7 +386,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       setTags(tags.slice(0, -1));
                     }
                   }}
-                  placeholder={tags.length === 0 ? "Type & Enter (e.g. 24h, Thai)" : ""}
+                  placeholder={tags.length === 0 ? "Type & Enter (e.g. Industry Leader, ISO 9001)" : ""}
                   className="flex-1 min-w-[120px] bg-transparent outline-none text-sm text-gray-700 placeholder-gray-400 py-1"
                 />
               </div>
@@ -396,7 +400,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               </label>
              <input
               type="text"
-              placeholder="e.g. 36°55'33.2S 174°48'09.5E"
+              placeholder="e.g. 31.230416 121.473701"
               className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all font-mono text-sm"
               onChange={(e) => {
                 const value = e.target.value;
@@ -426,14 +430,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all"
                 value={newShop.phone}
                 onChange={e => setNewShop({ ...newShop, phone: e.target.value })}
-                placeholder="Mobile number for SMS"
+                placeholder="WhatsApp / mobile for buyer inquiries"
               />
             </div>
 
             {/* Map region (home filter chips) */}
             <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <MapPin size={14} /> Map region
+                <MapPin size={14} /> Industrial zone
               </label>
               <select
                 className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none text-sm text-gray-800"
@@ -441,7 +445,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 onChange={(e) => setNewShop({ ...newShop, filter_city: e.target.value })}
               >
                 <option value="">Not set</option>
-                {REGION_OPTIONS.map((r) => (
+                {CHINA_ECONOMIC_ZONES.map((r) => (
                   <option key={r} value={r}>
                     {r}
                   </option>
@@ -451,65 +455,68 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <DollarSign size={14} /> Min. spend (entry, NZD)
+                <DollarSign size={14} /> MOQ / trade capacity
               </label>
               <select
                 className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none text-sm text-gray-800"
-                value={newShop.min_spend != null && newShop.min_spend > 0 ? String(newShop.min_spend) : ''}
+                value={
+                  newShop.min_spend != null && newShop.min_spend >= 1 && newShop.min_spend <= 4
+                    ? String(newShop.min_spend)
+                    : '0'
+                }
                 onChange={(e) => {
                   const v = e.target.value;
-                  setNewShop({ ...newShop, min_spend: v ? Number(v) : undefined });
+                  setNewShop({ ...newShop, min_spend: v === '0' ? undefined : Number(v) });
                 }}
               >
-                <option value="">Not set</option>
-                {MIN_SPEND_OPTIONS.map((n) => (
-                  <option key={n} value={n}>
-                    ${n}
+                {MOQ_TIER_FORM_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* 🔥 NEW: About Me */}
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Main product *</label>
+              <input
+                required
+                className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all"
+                value={newShop.main_product || ''}
+                onChange={(e) => setNewShop({ ...newShop, main_product: e.target.value })}
+                placeholder="e.g. LED drivers, knitwear, CNC machined parts"
+              />
+            </div>
+
+            {/* Capabilities */}
             <div className="bg-rose-50/50 p-4 rounded-2xl border border-rose-100">
               <label className="block text-xs font-bold text-rose-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <Info size={14} /> About Me / Therapist Intro
+                <Info size={14} /> Factory profile / capabilities
               </label>
               <textarea
                 rows={3}
                 className="w-full px-3 py-2 rounded-xl bg-white border border-rose-200 focus:ring-2 focus:ring-rose-500 outline-none transition-all text-sm text-gray-700 resize-none"
                 value={newShop.about_me}
                 onChange={e => setNewShop({ ...newShop, about_me: e.target.value })}
-                placeholder="Hi, I'm Sarah. Specializing in deep tissue..."
+                placeholder="Lines, certifications, export markets, key customers (sanitized)…"
               />
-              <p className="text-[10px] text-rose-400 mt-1">Displayed in a highlighted box on the detail page.</p>
+              <p className="text-[10px] text-rose-400 mt-1">Shown on the factory detail page.</p>
             </div>
 
-            {/* 🔥 NEW: Additional Price */}
+            {/* Commercial notes */}
             <div className="bg-green-50/50 p-4 rounded-2xl border border-green-100">
               <label className="block text-xs font-bold text-green-700 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <DollarSign size={14} /> Additional Price Info
+                <DollarSign size={14} /> Pricing / lead time notes
               </label>
               <textarea
                 rows={3}
                 className="w-full px-3 py-2 rounded-xl bg-white border border-green-200 focus:ring-2 focus:ring-green-500 outline-none transition-all text-sm text-gray-700 resize-none"
                 value={newShop.additional_price}
                 onChange={e => setNewShop({ ...newShop, additional_price: e.target.value })}
-                placeholder={`Extra 30 mins: $50\nOil upgrade: $10`}
+                placeholder={`FOB Shanghai\nTypical lead time: 25 days`}
               />
-              <p className="text-[10px] text-green-500 mt-1">Use Enter for new lines. Displayed in a green box.</p>
+              <p className="text-[10px] text-green-500 mt-1">Use Enter for new lines.</p>
             </div>
-
-            {/* New Badge Checkbox */}
-            <label className="flex items-center gap-3 p-4 rounded-xl bg-gray-50 active:bg-gray-100 transition-colors cursor-pointer border border-transparent hover:border-gray-200">
-              <input
-                type="checkbox"
-                className="w-5 h-5 accent-rose-500 rounded"
-                checked={newShop.new_girls_last_15_days}
-                onChange={e => setNewShop({ ...newShop, new_girls_last_15_days: e.target.checked })}
-              />
-              <span className="text-sm font-semibold text-gray-700">Display 🆕 "New" Badge</span>
-            </label>
 
             {/* Photos */}
             <div>
@@ -539,7 +546,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
             className={`w-full bg-rose-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-rose-200 active:scale-95 transition-transform sticky bottom-0
               ${isSubmitting ? 'opacity-70 cursor-not-allowed bg-gray-400 shadow-none' : 'hover:bg-rose-600'}`}
           >
-            {isSubmitting ? "Saving to Database..." : "Add Shop"}
+            {isSubmitting ? 'Saving…' : 'Add factory'}
           </button>
         </form>
       </div>
