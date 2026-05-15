@@ -1,55 +1,79 @@
 from app import create_app, db
 from app.models.shop import Shop
-from flask_cors import CORS
 
-# 1. 创建应用实例 (此时 app/__init__.py 中的 CORS 和 蓝图 已加载)
 app = create_app()
 
-# ⚠️ 注意：app/__init__.py 中已经配置过 CORS 了。
-# 如果那里配置了白名单，这里就不需要再写 CORS(app)，否则可能覆盖白名单。
-# 如果确定要全局开放开发环境，可以保留，但通常不需要。
-# CORS(app) 
-
-# --- 数据库初始化逻辑 (保持原样，非常棒) ---
+# Seed demo factories when the database is empty (China B2B context)
 with app.app_context():
-    shop = Shop.query.first()
-    if not shop:
-        print("🌱 未检测到数据，创建初始数据...")
-        shop = Shop(
-            name="Relax",
-            address="123 Queen Street, Auckland CBD, Auckland 1010",
-            phone="09-123-4567",
-            lat=-36.8485,
-            lng=174.7633,
-            badge_text="Verified Listing",
-            new_girls_last_15_days=True,
-            about_me="我们提供专业、放松的按摩服务，环境舒适，技师经验丰富。欢迎预约体验！",
-            additional_price="周末及公共假期加收 $20"
-        )
-        db.session.add(shop)
+    if Shop.query.count() == 0:
+        print("🌱 No factories found — creating demo China suppliers…")
+        demos = [
+            Shop(
+                name="Shenzhen Bright Electronics Co.",
+                address="Nanshan District, Shenzhen, Guangdong",
+                phone="+86-755-0000-1001",
+                lat=22.5431,
+                lng=114.0579,
+                badge_text="Industry Leader, ISO 9001 Certified, Export Experience",
+                new_girls_last_15_days=False,
+                about_me="Full-service EMS partner for consumer electronics; SMT lines, testing lab, and English-speaking PMs.",
+                additional_price="FOB Shenzhen · Typical lead time 20–28 days · Tooling quoted separately",
+                filter_city="Pearl River Delta",
+                min_spend=3,
+                main_product="Consumer electronics & PCBA",
+            ),
+            Shop(
+                name="Suzhou Precision Metalworks",
+                address="Suzhou Industrial Park, Jiangsu",
+                phone="+86-512-0000-2002",
+                lat=31.3160,
+                lng=120.7480,
+                badge_text="OEM/ODM Specialist, Fast Turnaround",
+                new_girls_last_15_days=False,
+                about_me="CNC machining, sheet metal, and powder coating for industrial buyers in EU/US.",
+                additional_price="Low MOQ pilot runs available · PPAP on request",
+                filter_city="Yangtze River Delta",
+                min_spend=2,
+                main_product="CNC machined components",
+            ),
+            Shop(
+                name="Qingdao Harbor Textiles Ltd.",
+                address="Huangdao, Qingdao, Shandong",
+                phone="+86-532-0000-3003",
+                lat=35.8704,
+                lng=120.1964,
+                badge_text="Export Experience, Trade Assurance",
+                new_girls_last_15_days=False,
+                about_me="Knitwear and outdoor fabrics with OEKO-TEX materials; long-term OEM for EU retailers.",
+                additional_price="LC at sight available for qualified buyers",
+                filter_city="Bohai Economic Rim",
+                min_spend=4,
+                main_product="Technical textiles & apparel",
+            ),
+            Shop(
+                name="Chongqing WestTech Motors",
+                address="Liangjiang New Area, Chongqing",
+                phone="+86-23-0000-4004",
+                lat=29.5630,
+                lng=106.5516,
+                badge_text="Industry Leader, OEM/ODM Specialist, Trade Assurance",
+                new_girls_last_15_days=False,
+                about_me="Brushless DC motors and gearmotors for appliances and mobility OEMs.",
+                additional_price="Annual volume agreements preferred · onsite audit welcome",
+                filter_city="Central & Western China",
+                min_spend=4,
+                main_product="Motors & electromechanical assemblies",
+            ),
+        ]
+        for row in demos:
+            db.session.add(row)
         db.session.commit()
-        print("✅ 数据创建成功！")
+        print("✅ Demo factories created.")
     else:
-        # 补全旧数据字段
-        updated = False
-        if not shop.about_me:
-            shop.about_me = "我们提供专业、放松的按摩服务，环境舒适，技师经验丰富。欢迎预约体验！"
-            updated = True
-        if not shop.additional_price:
-            shop.additional_price = "周末及公共假期加收 $20"
-            updated = True
-        
-        if updated:
-            db.session.commit()
-            print("✅ 数据已补全！")
-        else:
-            print("ℹ️ 数据检查完毕，一切正常。")
+        print("ℹ️  Factory data already present — skipping demo seed.")
 
 if __name__ == '__main__':
-    print("🚀 服务器启动成功！")
-    print("   - 监听地址：http://0.0.0.0:5000")
-    print("   - 统计接口已就绪：POST /shop/track/action")
-    print("   - 店铺列表接口：GET /shop/shops")
-    
-    # 启动服务
+    print('🚀 API server')
+    print('   - http://0.0.0.0:5000')
+    print('   - GET /shop/shops')
     app.run(host='0.0.0.0', debug=True, port=5000)

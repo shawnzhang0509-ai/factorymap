@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MessageCircle, MapPin, Phone, Upload, X, Check } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { MessageCircle, MapPin, Phone, Upload, X, Check, ExternalLink } from 'lucide-react';
 import { Shop, ShopEdit } from '../types';
 import { dmsToDecimal } from '../utils/geoUtils';
 import { getTagStyle } from '../constants';
-import { REGION_OPTIONS } from '../constants/filterRegions';
-import { MIN_SPEND_OPTIONS } from '../constants/minSpend';
+import { CHINA_ECONOMIC_ZONES } from '../constants/filterRegions';
+import { MOQ_TIER_FORM_OPTIONS, moqTierLabel } from '../constants/moqTiers';
+import { credentialIdsFromBadgeText } from '../constants/factoryCredentials';
 
 interface ShopCardProps {
   shop: Shop;
@@ -44,6 +46,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
   onEditModalChange,
   otherShopNamesLower = [],
 }) => {
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
   const gestureStateRef = useRef<GestureState>('idle');
@@ -77,7 +80,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
     const slug = getShopSlug();
     const detailPath = slug ? `/shop/${slug}` : `/shop/${shop.id}`;
     const detailUrl = `${window.location.origin}${detailPath}`;
-    return `Hi ${ownerName}, saw your ad on nzmassagemap.online, your home page is ${detailUrl}`;
+    return `Hello ${ownerName}, we found your factory on China Factory Map and would like to discuss sourcing. Profile: ${detailUrl}`;
   };
 
   const setGestureState = (nextState: GestureState) => {
@@ -205,15 +208,16 @@ const ShopCard: React.FC<ShopCardProps> = ({
     name: shop.name || '',
     address: shop.address || '',
     phone: shop.phone || '',
-    lat: typeof shop.lat === 'number' ? shop.lat : -36.8485,
-    lng: typeof shop.lng === 'number' ? shop.lng : 174.7633,
+    lat: typeof shop.lat === 'number' ? shop.lat : 31.2304,
+    lng: typeof shop.lng === 'number' ? shop.lng : 121.4737,
     pictures: Array.isArray(shop.pictures) ? [...shop.pictures] : [],
     new_girls_last_15_days: !!shop.new_girls_last_15_days,
     badge_text: shop.badge_text || '',
     
     // 👇 这里必须用 about_me 和 additional_price
-    about_me: shop.about_me || '', 
+    about_me: shop.about_me || '',
     additional_price: shop.additional_price || '',
+    main_product: (shop as Shop & { main_product?: string }).main_product || '',
     filter_city: (shop as Shop & { filter_city?: string }).filter_city || '',
     min_spend:
       typeof (shop as Shop & { min_spend?: number }).min_spend === 'number' &&
@@ -229,10 +233,15 @@ const ShopCard: React.FC<ShopCardProps> = ({
   const nameClashesWithOther =
     editNameKey.length > 0 && otherShopNamesLower.includes(editNameKey);
 
- const handleActionClick = (type: 'sms' | 'call', e: React.MouseEvent) => {
-    // 1. 阻止默认行为和事件冒泡（防止触发父元素的点击事件）
+ const handleActionClick = (type: 'sms' | 'call' | 'profile', e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    if (type === 'profile') {
+      const slug = getShopSlug();
+      navigate(slug ? `/shop/${slug}` : `/shop/${shop.id}`);
+      return;
+    }
 
     const phone = shop.phone || '';
     if (!phone) {
@@ -298,6 +307,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
     // ✅ 关键修正：发送的 key 必须与后端 Flask request.form.get() 的 key 一致
     formData.append('about_me', editData.about_me || '');
     formData.append('additional_price', editData.additional_price || '');
+    formData.append('main_product', editData.main_product || '');
 
     formData.append('badge_text', editData.badge_text || '');
     if (isAdmin) {
@@ -353,17 +363,19 @@ const ShopCard: React.FC<ShopCardProps> = ({
       });
 
       const minSpendVal =
-        updatedShop.min_spend != null && Number(updatedShop.min_spend) > 0
+        updatedShop.min_spend != null &&
+        Number(updatedShop.min_spend) >= 1 &&
+        Number(updatedShop.min_spend) <= 4
           ? Number(updatedShop.min_spend)
           : undefined;
       const finalData = {
         ...updatedShop,
         pictures: fixedPictures,
-        new_girls_last_15_days: editData.new_girls_last_15_days, 
+        new_girls_last_15_days: editData.new_girls_last_15_days,
         badge_text: editData.badge_text || '',
-        // 确保返回数据也包含正确的字段名
         about_me: editData.about_me,
         additional_price: editData.additional_price,
+        main_product: editData.main_product || '',
         filter_city: editData.filter_city || '',
         min_spend: minSpendVal,
       };
@@ -376,6 +388,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
         removePictureIds: [],
         about_me: editData.about_me,
         additional_price: editData.additional_price,
+        main_product: editData.main_product || '',
         filter_city: editData.filter_city || '',
         min_spend: minSpendVal,
       }));
@@ -497,36 +510,49 @@ const ShopCard: React.FC<ShopCardProps> = ({
               />
             </div>
 
-            {/* ABOUT ME */}
+            {/* MAIN PRODUCT */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">ABOUT ME</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">MAIN PRODUCT</label>
+              <input
+                type="text"
+                value={editData.main_product || ''}
+                onChange={(e) => setEditData({ ...editData, main_product: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
+                placeholder="e.g. Consumer electronics, textiles, machinery"
+                className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+
+            {/* ABOUT / CAPABILITIES */}
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1">CAPABILITIES & NOTES</label>
               <textarea
                 value={editData.about_me || ''}
                 onChange={(e) => setEditData({ ...editData, about_me: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                placeholder="Tell customers about your shop..."
+                placeholder="Equipment, certifications, production lines, export markets…"
                 className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 rows={3}
               />
             </div>
 
-            {/* ADDITIONAL PRICE INFO */}
+            {/* PRICING / TERMS */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">ADDITIONAL PRICE INFO</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">PRICING / LEAD TIME NOTES</label>
               <input
                 type="text"
                 value={editData.additional_price || ''}
                 onChange={(e) => setEditData({ ...editData, additional_price: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                placeholder="e.g. $80/1hr, $150/2hrs"
+                placeholder="e.g. FOB terms, typical lead time, tooling fees"
                 className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
-            {/* MAP REGION (admin only) */}
+            {/* ECONOMIC ZONE (admin only) */}
             {isAdmin && (
               <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">MAP REGION</label>
+                <label className="block text-xs font-bold text-gray-500 mb-1">INDUSTRIAL ZONE</label>
                 <select
                   value={editData.filter_city || ''}
                   onChange={(e) => setEditData({ ...editData, filter_city: e.target.value })}
@@ -534,7 +560,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
                   className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                 >
                   <option value="">— Not set —</option>
-                  {REGION_OPTIONS.map((r) => (
+                  {CHINA_ECONOMIC_ZONES.map((r) => (
                     <option key={r} value={r}>
                       {r}
                     </option>
@@ -545,27 +571,30 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
             {shop.can_edit && (
               <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">MIN. SPEND (NZD)</label>
+                <label className="block text-xs font-bold text-gray-500 mb-1">MOQ / TRADE CAPACITY</label>
                 <select
-                  value={editData.min_spend != null && editData.min_spend > 0 ? String(editData.min_spend) : ''}
+                  value={
+                    editData.min_spend != null && editData.min_spend >= 1 && editData.min_spend <= 4
+                      ? String(editData.min_spend)
+                      : '0'
+                  }
                   onChange={(e) => {
                     const v = e.target.value;
                     setEditData({
                       ...editData,
-                      min_spend: v ? Number(v) : undefined,
+                      min_spend: v === '0' ? undefined : Number(v),
                     });
                   }}
                   onClick={(e) => e.stopPropagation()}
                   className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                 >
-                  <option value="">— Not set —</option>
-                  {MIN_SPEND_OPTIONS.map((n) => (
-                    <option key={n} value={n}>
-                      ${n}
+                  {MOQ_TIER_FORM_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
                     </option>
                   ))}
                 </select>
-                <p className="text-[10px] text-gray-500 mt-1">Shown on the map card when set</p>
+                <p className="text-[10px] text-gray-500 mt-1">Shown on the map card for overseas buyers</p>
               </div>
             )}
 
@@ -660,15 +689,15 @@ const ShopCard: React.FC<ShopCardProps> = ({
               </div>
             </div>
 
-            {/* TAGS */}
+            {/* CREDENTIALS (comma-separated English labels) */}
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">TAGS (Auto-Style)</label>
+              <label className="block text-xs font-bold text-gray-700 mb-1">CREDENTIALS</label>
               <input
                 type="text"
                 value={editData.badge_text || ''}
                 onChange={(e) => setEditData({ ...editData, badge_text: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                placeholder="e.g. Diamond, VIP, New, Thai"
+                placeholder="e.g. Industry Leader, ISO 9001 Certified, Export Experience"
                 disabled={!isAdmin}
                 className={`w-full px-3 py-2 text-sm border rounded-lg outline-none ${
                   isAdmin
@@ -678,11 +707,12 @@ const ShopCard: React.FC<ShopCardProps> = ({
               />
               {!isAdmin && (
                 <p className="text-[10px] text-amber-600 mt-1">
-                  Badge is admin-only and cannot be changed by normal users.
+                  Credentials are admin-only and cannot be changed by supplier users.
                 </p>
               )}
               <p className="text-[10px] text-gray-500 mt-1">
-                Separate with commas. Keywords like "Diamond", "VIP", "New" get special icons.
+                Use the buyer-facing phrases from the map filter (comma-separated), e.g. Industry Leader, OEM/ODM
+                Specialist, Trade Assurance.
               </p>
 
               {editData.badge_text && editData.badge_text.trim() !== '' && (
@@ -837,23 +867,19 @@ const ShopCard: React.FC<ShopCardProps> = ({
         </div>
       )}
 
-      {/* 标签层（与首页一致：仅 new_girls 时显示 New） */}
+      {/* Credential badges */}
       {(() => {
-        const raw = shop.badge_text?.trim() || '';
-        const badgeSource = raw || (shop.new_girls_last_15_days ? 'New' : '');
-        if (!badgeSource) return null;
+        const ids = credentialIdsFromBadgeText(shop.badge_text);
+        if (!ids.length) return null;
         return (
         <div className="absolute top-3 left-3 z-40 flex flex-wrap gap-2 max-w-[85%] pointer-events-none">
-          {badgeSource.split(',').map((tagStr, tIdx) => {
-            const rawTag = tagStr.trim();
-            if (!rawTag) return null;
-            const lowerTag = rawTag.toLowerCase();
-            const config = getTagStyle(lowerTag);
-            const displayText = config.text || (rawTag.charAt(0).toUpperCase() + rawTag.slice(1));
+          {ids.map((id) => {
+            const config = getTagStyle(id);
+            const displayText = config.text || id;
 
             return (
               <span 
-                key={tIdx} 
+                key={id} 
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black tracking-wide shadow-lg backdrop-blur-sm ${config.bg}`}
               >
                 {config.icon && <span className="text-lg leading-none shrink-0 filter drop-shadow-md">{config.icon}</span>}
@@ -979,29 +1005,45 @@ const ShopCard: React.FC<ShopCardProps> = ({
             </span>
           ) : null}
         </div>
-        {shop.min_spend != null && shop.min_spend > 0 && (
+        {shop.main_product?.trim() ? (
+          <p className="text-[10px] font-semibold text-slate-700 sm:text-[11px]">
+            Main product: {shop.main_product.trim()}
+          </p>
+        ) : null}
+        {shop.min_spend != null && shop.min_spend >= 1 && shop.min_spend <= 4 && (
           <p className="text-[10px] font-semibold text-gray-600 sm:text-[11px]">
-            Min. from ${shop.min_spend}
+            {moqTierLabel(shop.min_spend)}
           </p>
         )}
-        <div className="flex items-start gap-1.5 text-gray-500 text-xs leading-tight h-8 overflow-hidden">
+        <div className="flex items-start gap-1.5 text-gray-500 text-xs leading-tight min-h-[2rem] overflow-hidden">
           <MapPin className="w-3 h-3 flex-shrink-0 mt-0.5 text-rose-400" />
-          <p className="line-clamp-2">{shop.address}</p>
+          <p className="line-clamp-2" title={shop.address}>
+            {shop.address}
+          </p>
         </div>
         <div className="flex items-center gap-2 pt-1">
-          {/* ✅ 新的 SMS 按钮 */}
           <button
+            type="button"
+            onClick={(e) => handleActionClick('profile', e)}
+            className="flex-1 border border-rose-500 text-rose-600 hover:bg-rose-50 font-semibold py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-colors text-sm"
+          >
+            <ExternalLink className="w-4 h-4" />
+            <span>View Profile</span>
+          </button>
+          <button
+            type="button"
             onClick={(e) => handleActionClick('sms', e)}
-            className="flex-1 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-semibold py-2 px-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
+            className="flex-1 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-semibold py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-colors text-sm"
           >
             <MessageCircle className="w-4 h-4" />
-            <span className="text-sm">SMS</span>
+            <span>Contact Supplier</span>
           </button>
 
-          {/* ✅ 新的 Phone 按钮 */}
           <button
+            type="button"
             onClick={(e) => handleActionClick('call', e)}
-            className="bg-gray-100 hover:bg-gray-200 p-2 rounded-xl text-gray-600 transition-colors"
+            className="bg-gray-100 hover:bg-gray-200 p-2 rounded-xl text-gray-600 transition-colors shrink-0"
+            aria-label="Call supplier"
           >
             <Phone className="w-5 h-5" />
           </button>

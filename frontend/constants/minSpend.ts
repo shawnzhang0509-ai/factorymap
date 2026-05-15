@@ -1,12 +1,9 @@
-/** Allowed minimum-spend values (shop field + home filter) */
-export const MIN_SPEND_OPTIONS = [60, 80, 100, 120, 140, 160] as const;
+/** @deprecated Import MOQ / factory constants from `../constants/moqTiers` and `../constants/factoryCredentials`. */
+export { MOQ_TIER_FORM_OPTIONS } from './moqTiers';
+import { normalizeMoqStored } from './moqTiers';
 
-export type MinSpendValue = (typeof MIN_SPEND_OPTIONS)[number];
-
+/** Values 1–4 = MOQ tier; legacy data → null */
 export function parseMinSpend(raw: unknown): number | null {
-  if (raw == null || raw === '') return null;
-  const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  if ((MIN_SPEND_OPTIONS as readonly number[]).includes(n)) return n;
-  return n;
+  const t = normalizeMoqStored(raw);
+  return t === 0 ? null : t;
 }

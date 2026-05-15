@@ -21,7 +21,8 @@ _HEADER_GROUPS: list[tuple[str, tuple[str, ...]]] = [
     ("about_me", ("about_me", "简介", "about")),
     ("additional_price", ("additional_price", "附加费用", "加价说明")),
     ("filter_city", ("filter_city", "区域", "筛选城市")),
-    ("min_spend", ("min_spend", "最低消费")),
+    ("min_spend", ("min_spend", "moq", "起订量", "最低消费")),
+    ("main_product", ("main_product", "主营产品", "产品", "品类")),
 ]
 
 REQUIRED_FIELDS = ("name", "address", "phone", "lat", "lng")
@@ -97,6 +98,7 @@ def _row_to_payload(header_to_col: dict[str, int], row: tuple[Any, ...]) -> dict
     filter_city = _cell_str(get("filter_city")) or ""
     min_raw = get("min_spend")
     min_str = _cell_str(min_raw) if min_raw is not None else None
+    main_product = _cell_str(get("main_product")) or ""
 
     raw_new = get("new_girls_last_15_days")
     new_girls = _parse_bool(raw_new) if raw_new not in (None, "") else False
@@ -121,6 +123,8 @@ def _row_to_payload(header_to_col: dict[str, int], row: tuple[Any, ...]) -> dict
         data["filter_city"] = filter_city
     if min_str:
         data["min_spend"] = min_str
+    if main_product:
+        data["main_product"] = main_product
     return data
 
 
@@ -190,6 +194,7 @@ def build_template_workbook_bytes() -> bytes:
         "additional_price",
         "filter_city",
         "min_spend",
+        "main_product",
     ]
     ws.append(headers)
     bio = BytesIO()

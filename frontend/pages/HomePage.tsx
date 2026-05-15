@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import AgeVerificationModal from '../components/AgeVerificationModal';
-import { REGION_OPTIONS } from '../constants/filterRegions';
+import { REGION_FILTER_OPTIONS } from '../constants/filterRegions';
 import MapComponent from '../components/MapComponent';
 import ShopCard from '../components/ShopCard';
 import AdminPanel from '../components/AdminPanel';
 import { Shop, UserLocation } from '../types';
-import { NZ_CENTER } from '../constants';
+import { CHINA_CENTER } from '../constants';
 import { calculateDistance } from '../utils';
 import LoginPanel from '../components/LoginPanel';
 import ImagePreviewModal from '../components/ImagePreviewPanel';
@@ -14,14 +14,19 @@ import { Plus, Navigation, Filter, Share2, Search, ChevronUp, ChevronDown, MapPi
 import BadgeFilterDropdown from '../components/BadgeFilterDropdown';
 import MinSpendFilterDropdown from '../components/MinSpendFilterDropdown';
 import { parseMinSpend } from '../constants/minSpend';
+import { credentialIdsFromBadgeText, FACTORY_CREDENTIAL_IDS } from '../constants/factoryCredentials';
+import type { MoqFilterKey } from '../constants/moqTiers';
+import { shopPassesMoqFilter } from '../constants/moqTiers';
 
-const STORAGE_KEY = 'nz_massage_shops_v1';
-const SHARE_TOOLTIP_SEEN_KEY = 'nz_share_tooltip_seen_v1';
+const STORAGE_KEY = 'china_factory_map_v2';
+const SHARE_TOOLTIP_SEEN_KEY = 'china_factory_share_tip_v1';
 /** Session only: show location FAB hint again on new visit / new tab */
-const LOCATION_FAB_TIP_DISMISSED_KEY = 'nz_location_fab_tip_dismissed_session';
+const LOCATION_FAB_TIP_DISMISSED_KEY = 'china_factory_loc_tip_session';
+const TERMS_ACCEPTED_KEY = 'china_factory_map_terms_v1';
+const LEGACY_TERMS_KEY = 'age_verified';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
-/** Align list payload with UI: picture URLs, and badge_text fallback from new_girls_last_15_days */
+/** Align list payload with UI: picture URLs, MOQ tier, main product */
 function normalizeShopFromApi(shop: any, apiBase: string): Shop {
   const pictures =
     shop.pictures?.map((pic: any) => ({
@@ -29,12 +34,8 @@ function normalizeShopFromApi(shop: any, apiBase: string): Shop {
       url: pic.url && pic.url.startsWith('/files/') ? `${apiBase}${pic.url}` : pic.url,
     })) || [];
   const rawBadge = shop.badge_text;
-  const hasBadge = rawBadge != null && String(rawBadge).trim() !== '';
-  const badge_text = hasBadge
-    ? String(rawBadge).trim()
-    : shop.new_girls_last_15_days
-      ? 'New'
-      : '';
+  const badge_text =
+    rawBadge != null && String(rawBadge).trim() !== '' ? String(rawBadge).trim() : '';
   const minSpend = parseMinSpend(shop.min_spend);
   return {
     ...shop,
@@ -42,6 +43,7 @@ function normalizeShopFromApi(shop: any, apiBase: string): Shop {
     badge_text,
     filter_city: shop.filter_city || '',
     min_spend: minSpend ?? undefined,
+    main_product: shop.main_product || '',
   };
 }
 
@@ -61,10 +63,10 @@ function buildNearbyRangeTitle(
 ): string {
   const xx = radiusKm;
   if (centerType === 'USER') {
-    return `Shops near you within ${xx}km`;
+    return `Factories near you within ${xx}km`;
   }
-  const name = (centerName || 'this shop').trim();
-  return `Shops surrounding ${name} within ${xx}km`;
+  const name = (centerName || 'this supplier').trim();
+  return `Factories surrounding ${name} within ${xx}km`;
 }
 
 const HomePage: React.FC = () => {
@@ -88,13 +90,16 @@ const HomePage: React.FC = () => {
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [zoom, setZoom] = useState<number>(5.5); 
-  const [center, setCenter] = useState<UserLocation>(NZ_CENTER); // 使用你导入的 NZ_CENTER 作为默认值
+  const [center, setCenter] = useState<UserLocation>(CHINA_CENTER);
   
 
   // ✅ 新增：年龄验证状态
   const [isAgeVerified, setIsAgeVerified] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('age_verified') === 'true';
+      return (
+        localStorage.getItem(TERMS_ACCEPTED_KEY) === 'true' ||
+        localStorage.getItem(LEGACY_TERMS_KEY) === 'true'
+      );
     }
     return false;
   });
@@ -141,10 +146,10 @@ const HomePage: React.FC = () => {
   const [previewIndex, setPreviewIndex] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  /** Map region filter (OR); empty = all regions */
+  /** Map region filter (OR); empty = all. "All China" in selection disables regional restriction. */
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
-  /** Min spend filter: show shops with no min_spend or min_spend <= value */
-  const [maxMinSpend, setMaxMinSpend] = useState<number | null>(null);
+  /** MOQ / trade capacity filter */
+  const [moqFilter, setMoqFilter] = useState<MoqFilterKey | null>(null);
   const [searchPanelOpen, setSearchPanelOpen] = useState(false);
   const [searchDraft, setSearchDraft] = useState('');
   const [appliedSearchKeyword, setAppliedSearchKeyword] = useState('');
@@ -250,7 +255,7 @@ const HomePage: React.FC = () => {
 
   // 3. ✅ 新增：处理确认函数 (独立函数)
   const handleAgeConfirm = () => {
-    localStorage.setItem('age_verified', 'true');
+    localStorage.setItem(TERMS_ACCEPTED_KEY, 'true');
     setIsAgeVerified(true);
     setShowAgeModal(false);
   };
@@ -260,46 +265,9 @@ const HomePage: React.FC = () => {
     window.location.href = 'https://www.google.com';
   };
 
-  const normalizeTag = (tag: string): string => {
-    let clean = (tag || '').trim().toLowerCase();
-    if (!clean) return '';
-    clean = clean.replace(/^🆕\s*/, '');
-    clean = clean.replace(/\s+/g, ' ');
-    clean = clean
-      .replace(/^[^a-z0-9\u4e00-\u9fa5]+/gi, '')
-      .replace(/[^a-z0-9\u4e00-\u9fa5]+$/gi, '')
-      .trim();
+  const getShopTags = (shop: Shop): string[] => credentialIdsFromBadgeText(shop.badge_text);
 
-    const aliasMap: Record<string, string> = {
-      'new girl': 'new',
-      'new girls': 'new',
-      'vip seller': 'vip',
-      'diamond seller': 'diamond',
-      'adultdollseller': 'adult doll seller',
-    };
-    return aliasMap[clean] || clean;
-  };
-
-  const getShopTags = (shop: Shop): string[] => {
-    const text = shop.badge_text;
-    const fromText =
-      text && typeof text === 'string' && text.trim() !== ''
-        ? text
-            .split(/[,\n，|/]+/)
-            .map((t) => normalizeTag(t))
-            .filter(Boolean)
-        : [];
-    if (shop.new_girls_last_15_days && !fromText.includes('new')) {
-      fromText.push('new');
-    }
-    return fromText;
-  };
-
-  const allTags = useMemo(() => {
-    const tagSet = new Set<string>();
-    shops.forEach(shop => getShopTags(shop).forEach(tag => tagSet.add(tag)));
-    return Array.from(tagSet).sort();
-  }, [shops]);
+  const allTags = FACTORY_CREDENTIAL_IDS;
 
   const existingShopNamesLower = useMemo(
     () => shops.map((s) => (s.name || '').trim().toLowerCase()).filter(Boolean),
@@ -330,13 +298,13 @@ const HomePage: React.FC = () => {
 
     // 2. 执行标签过滤（多选：匹配任意一个）
     if (selectedTags.length > 0) {
-      const targetTags = new Set(selectedTags.map((t) => normalizeTag(t)));
+      const targetTags = new Set(selectedTags);
       result = result.filter((shop) =>
         getShopTags(shop).some((tag) => targetTags.has(tag))
       );
     }
 
-    if (selectedRegions.length > 0) {
+    if (selectedRegions.length > 0 && !selectedRegions.includes('All China')) {
       const regionSet = new Set(selectedRegions);
       result = result.filter((shop) => {
         const fc = (shop as Shop & { filter_city?: string }).filter_city?.trim();
@@ -344,21 +312,19 @@ const HomePage: React.FC = () => {
       });
     }
 
-    if (maxMinSpend != null) {
-      result = result.filter((shop) => {
-        const v = (shop as Shop & { min_spend?: number }).min_spend;
-        if (v == null || v === undefined) return true;
-        return v <= maxMinSpend;
-      });
+    if (moqFilter != null) {
+      result = result.filter((shop) =>
+        shopPassesMoqFilter((shop as Shop & { min_spend?: number }).min_spend, moqFilter)
+      );
     }
 
-    // 3. ✅ 新增：综合排序逻辑 (优先级 > 距离)
-    // 定义优先级辅助函数
+    // 3. ✅ 综合排序 (credentials > distance)
     const getPriority = (shop: Shop) => {
       const tags = getShopTags(shop);
-      if (tags.includes('diamond')) return 3; // 最高优先级
-      if (tags.includes('vip')) return 2;      // 次高优先级
-      return 0;                                // 普通店铺
+      if (tags.includes('industry-leader')) return 3;
+      if (tags.includes('trade-assurance')) return 2;
+      if (tags.includes('export-experience')) return 1;
+      return 0;
     };
 
     result.sort((a, b) => {
@@ -400,7 +366,7 @@ const HomePage: React.FC = () => {
     }
 
     return result;
-  }, [shops, useNearbyFilter, userLocation, radiusKm, selectedTags, selectedRegions, maxMinSpend, selectedShop]);
+  }, [shops, useNearbyFilter, userLocation, radiusKm, selectedTags, selectedRegions, moqFilter, selectedShop]);
 
   // Scrolling Logic
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -810,9 +776,14 @@ const HomePage: React.FC = () => {
   }, [searchPanelOpen, appliedSearchKeyword]);
 
   const toggleRegion = (r: string) => {
-    setSelectedRegions((prev) =>
-      prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]
-    );
+    setSelectedRegions((prev) => {
+      if (r === 'All China') {
+        return prev.includes('All China') ? [] : ['All China'];
+      }
+      const withoutAll = prev.filter((x) => x !== 'All China');
+      if (withoutAll.includes(r)) return withoutAll.filter((x) => x !== r);
+      return [...withoutAll, r];
+    });
   };
 
   const handleLoginSuccess = (payload: { username: string; token: string; isAdmin: boolean; isAdManager: boolean }) => {
@@ -871,7 +842,7 @@ const HomePage: React.FC = () => {
 
     try {
       await navigator.clipboard.writeText(shareUrl);
-      alert('Link copied — share it with a friend!');
+      alert('Link copied — send it to a buyer or sourcing colleague.');
     } catch {
       try {
         const ta = document.createElement('textarea');
@@ -880,7 +851,7 @@ const HomePage: React.FC = () => {
         ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
-        alert('Link copied — share it with a friend!');
+        alert('Link copied — send it to a buyer or sourcing colleague.');
       } catch {
         alert(shareUrl || 'Unable to copy link');
       }
@@ -927,7 +898,7 @@ const HomePage: React.FC = () => {
 
         // 4. 正确的提示语 (使用我们刚定义的常量)
         setTimeout(() => {
-          alert(`📍 Filtering cute faces around ${DEFAULT_RADIUS}km… just for you 😎.`);
+          alert(`📍 Showing verified factories within ${DEFAULT_RADIUS}km of your location.`);
         }, 100);
       },
       (err) => {
@@ -947,7 +918,10 @@ const HomePage: React.FC = () => {
   };
 
   const handleAddShop = (newShop: Shop) => {
-    if (shops.some(s => s.name.trim().toLowerCase() === newShop.name.trim().toLowerCase())) { alert(`Shop "${newShop.name}" already exists`); return; }
+    if (shops.some(s => s.name.trim().toLowerCase() === newShop.name.trim().toLowerCase())) {
+      alert(`Factory "${newShop.name}" already exists`);
+      return;
+    }
     setShops([...shops, newShop]); setShowCreateAd(false);
     const slug = newShop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     navigate(`/shop/${slug}`);
@@ -983,7 +957,7 @@ const HomePage: React.FC = () => {
       return;
     }
     if (!canManageAllAds) {
-      alert('Only admin or ad manager can create new ads. Please contact admin to get ads assigned.');
+      alert('Only admin or ad manager can add factory listings. Please contact an administrator.');
       return;
     }
     setShowCreateAd(true);
@@ -997,7 +971,7 @@ const HomePage: React.FC = () => {
       {/* Region chips: no panel fill — only glass pills; map visible behind */}
       <div className="absolute top-0 left-0 right-[72px] sm:right-0 z-[996] pointer-events-none bg-transparent">
         <div className="max-w-7xl mx-auto px-0.5 sm:px-3 pt-[max(2px,env(safe-area-inset-top,0px))] pb-0 pointer-events-auto bg-transparent">
-          {[REGION_OPTIONS.slice(0, 4), REGION_OPTIONS.slice(4)].map((row, rowIdx) => (
+          {[REGION_FILTER_OPTIONS.slice(0, 3), REGION_FILTER_OPTIONS.slice(3)].map((row, rowIdx) => (
             <div key={rowIdx} className="flex justify-center gap-0 sm:gap-1.5 mb-px last:mb-0">
               {row.map((r) => {
                 const on = selectedRegions.includes(r);
@@ -1033,7 +1007,7 @@ const HomePage: React.FC = () => {
             />
           </div>
           <div className="shrink-0 flex items-center justify-end">
-            <MinSpendFilterDropdown value={maxMinSpend} onChange={setMaxMinSpend} />
+            <MinSpendFilterDropdown value={moqFilter} onChange={setMoqFilter} />
           </div>
         </div>
       </div>
@@ -1041,13 +1015,13 @@ const HomePage: React.FC = () => {
       {/*
         Map must fill this panel (absolute inset-0), not sit below padding-top —
         otherwise the padded strip shows the page background (looks like a grey bar).
-        Region / badge / min-spend rows float above the map with higher z-index.
+        Region / credentials / MOQ rows float above the map with higher z-index.
       */}
       <div className="flex-1 relative overflow-hidden min-h-0 pt-[calc(env(safe-area-inset-top,0px)+5.45rem)]">
         <div className="absolute inset-0 z-0">
           <MapComponent
             shops={filteredShops}
-            center={userLocation || NZ_CENTER}
+            center={userLocation || CHINA_CENTER}
             zoom={zoom}
             selectedShop={selectedShop}
             userLocation={userLocation}
@@ -1073,7 +1047,7 @@ const HomePage: React.FC = () => {
               type="button"
               onClick={handleSearchFabClick}
               className={`p-3 rounded-full shadow-lg ${searchPanelOpen ? 'bg-rose-600 text-white' : 'bg-white text-gray-800'}`}
-              title={searchPanelOpen ? 'Search (confirm)' : 'Search shops'}
+              title={searchPanelOpen ? 'Search (confirm)' : 'Search factories'}
               aria-expanded={searchPanelOpen}
               aria-label={searchPanelOpen ? 'Confirm search' : 'Open search'}
             >
@@ -1088,7 +1062,7 @@ const HomePage: React.FC = () => {
                 className="absolute right-0 top-[calc(100%+8px)] w-[min(calc(100vw-5rem),18rem)] rounded-2xl border border-gray-200 bg-white p-3 shadow-2xl z-[10002]"
                 onClick={(e) => e.stopPropagation()}
               >
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Shop name</label>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Factory name</label>
                 <input
                   type="text"
                   value={searchDraft}
@@ -1118,9 +1092,11 @@ const HomePage: React.FC = () => {
                     className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-r border-t border-sky-100/90 rotate-45"
                     aria-hidden
                   />
-                  <p className="text-sm font-bold text-sky-700 leading-tight pr-1">Find who is near your place</p>
+                  <p className="text-sm font-bold text-sky-700 leading-tight pr-1">
+                    Find verified factories in industrial zones
+                  </p>
                   <p className="text-[11px] text-gray-600 leading-snug mt-1 pr-1">
-                    Tap the blue arrow to turn on your location; we will show listings around you on the map.
+                    Tap the blue arrow to use your location; we will highlight suppliers around you on the map.
                   </p>
                   <p className="text-[10px] text-sky-500 font-semibold mt-1.5 pr-1">Tap here to close</p>
                 </div>
@@ -1140,7 +1116,7 @@ const HomePage: React.FC = () => {
             type="button"
             onClick={handleCreateAdClick}
             className="p-3 bg-white text-rose-500 rounded-full shadow-lg"
-            title={!isLoggedIn ? 'Login to add ad' : (canManageAllAds ? 'Add your ad' : 'Admin/ad manager only')}
+            title={!isLoggedIn ? 'Login to manage listings' : (canManageAllAds ? 'Add factory listing' : 'Admin / ad manager only')}
           >
             <Plus className="w-6 h-6" />
           </button>
@@ -1157,9 +1133,9 @@ const HomePage: React.FC = () => {
                     className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-r border-t border-rose-100/80 rotate-45"
                     aria-hidden
                   />
-                  <p className="text-sm font-bold text-rose-600 leading-tight pr-1">Share the Love</p>
+                  <p className="text-sm font-bold text-rose-600 leading-tight pr-1">Share directory</p>
                   <p className="text-[11px] text-gray-600 leading-snug mt-1 pr-1">
-                    Know a friend who needs a massage? Send them this spot!
+                    Know a buyer who needs this supplier? Share this factory!
                   </p>
                 </div>
               </div>
@@ -1190,7 +1166,7 @@ const HomePage: React.FC = () => {
                 setNearbyCenterType('USER');
                 setNearbyCenterName('');
                 setNearbyCenterShopId(null);
-                setCenter(NZ_CENTER);
+                setCenter(CHINA_CENTER);
                 setZoom(5.5);
               }}
               className="ml-1 sm:ml-2 rounded-full bg-gradient-to-r from-rose-500 to-orange-400 px-3 py-1.5 text-xs font-extrabold text-white shadow-lg shadow-rose-500/25 ring-2 ring-white/90 transition hover:from-rose-600 hover:to-orange-500 active:scale-95 animate-pulse"
@@ -1247,7 +1223,7 @@ const HomePage: React.FC = () => {
                           {selectedShop?.id !== nearbyCenterShop.id && (
                             <>
                               <span className="text-[11px] sm:text-xs font-semibold text-amber-950 leading-snug tracking-tight">
-                                Shops surrounding
+                                Factories surrounding
                               </span>
                               <button
                                 type="button"
@@ -1265,7 +1241,7 @@ const HomePage: React.FC = () => {
                           )}
                           {selectedShop?.id === nearbyCenterShop.id && (
                             <span className="text-[11px] sm:text-xs font-semibold text-amber-950 leading-snug tracking-tight">
-                              Shops surrounding {nearbyCenterShop.name} within {radiusKm}km
+                              Factories surrounding {nearbyCenterShop.name} within {radiusKm}km
                             </span>
                           )}
                         </div>
@@ -1333,7 +1309,9 @@ const HomePage: React.FC = () => {
                       })
                     ) : (
                       <div className="text-white font-bold bg-black/40 backdrop-blur-md p-8 rounded-xl text-center min-w-[300px] shadow-lg">
-                        {selectedTags.length > 0 ? `No shops found with selected badges.` : "No shops found nearby."}
+                        {selectedTags.length > 0
+                          ? `No factories match the selected credentials.`
+                          : 'No factories match the current filters.'}
                       </div>
                     )}
                   </div>
@@ -1345,7 +1323,7 @@ const HomePage: React.FC = () => {
                       type="button"
                       onClick={toggleDrawer}
                       className="min-h-12 min-w-12 w-12 h-12 rounded-full flex items-center justify-center text-white bg-slate-900 hover:bg-slate-800 active:scale-95 shadow-[0_4px_20px_rgba(0,0,0,0.45)] ring-[3px] ring-white/90 border-2 border-white/50 motion-reduce:shadow-lg"
-                      aria-label="Collapse shop list"
+                      aria-label="Collapse factory list"
                     >
                       <ChevronDown size={26} strokeWidth={3} />
                     </button>
@@ -1368,7 +1346,7 @@ const HomePage: React.FC = () => {
                   <div className="flex items-center gap-2 text-white w-full min-w-0">
                     <MapPin size={16} className="flex-shrink-0 drop-shadow" />
                     <span className="font-bold text-[11px] sm:text-xs leading-tight drop-shadow">
-                      Select a shop on the map
+                      Select a factory on the map
                     </span>
                   </div>
                 )}
@@ -1383,7 +1361,7 @@ const HomePage: React.FC = () => {
                       toggleDrawer();
                     }}
                     className="min-h-12 min-w-12 w-12 h-12 rounded-full flex items-center justify-center text-white bg-gradient-to-br from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 active:scale-95 shadow-[0_4px_22px_rgba(225,29,72,0.55)] ring-[3px] ring-white/95 border-2 border-white/60 animate-pulse motion-reduce:animate-none"
-                    aria-label="Expand shop list"
+                    aria-label="Expand factory list"
                   >
                     <ChevronUp size={28} strokeWidth={3} />
                   </button>

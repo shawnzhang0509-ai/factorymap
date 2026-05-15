@@ -45,6 +45,22 @@ def _ensure_shop_min_spend_column():
         print(f"⚠️ shop.min_spend schema check skipped: {e}")
 
 
+def _ensure_shop_main_product_column():
+    try:
+        engine = db.engine
+        insp = inspect(engine)
+        if not insp.has_table("shop"):
+            return
+        names = {c["name"] for c in insp.get_columns("shop")}
+        if "main_product" in names:
+            return
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE shop ADD COLUMN main_product VARCHAR(200)"))
+        print("✅ Added missing column shop.main_product (schema sync)")
+    except Exception as e:
+        print(f"⚠️ shop.main_product schema check skipped: {e}")
+
+
 def _ensure_user_ad_manager_column():
     try:
         engine = db.engine
@@ -131,10 +147,11 @@ def create_app():
         db.create_all()
         _ensure_shop_filter_city_column()
         _ensure_shop_min_spend_column()
+        _ensure_shop_main_product_column()
         _ensure_user_ad_manager_column()
 
     @app.route('/')
     def home():
-        return "<h1>🎉 Welcome to NZ Massage Map!</h1><p>API is running.</p>"
+        return "<h1>China Factory Map API</h1><p>Flask backend is running.</p>"
         
     return app

@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Shop } from '../components/types';
-import { ArrowLeft, MapPin, Phone, Star, ExternalLink, Share2, Info, DollarSign } from 'lucide-react';
+import { ArrowLeft, MapPin, Phone, ExternalLink, Share2, Info, DollarSign } from 'lucide-react';
 // ✅ 引入新的图片组件
 import ImageGallery from '../components/ImageGallery'; 
 
@@ -16,13 +16,13 @@ const ShopDetailPage: React.FC = () => {
 
   const handleShare = async () => {
     const currentUrl = window.location.href;
-    const shopName = shop?.name || 'This Shop';
+    const shopName = shop?.name || 'This factory';
 
     if (navigator.share) {
       try {
         await navigator.share({
           title: shopName,
-          text: `Check out ${shopName} on NZ Massage Map!`,
+          text: `View ${shopName} on China Factory Map — verified supplier profile.`,
           url: currentUrl,
         });
         return; 
@@ -117,8 +117,8 @@ const ShopDetailPage: React.FC = () => {
   if (!shop) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
-        <h2 className="text-xl font-bold text-gray-800 mb-2">Shop Not Found</h2>
-        <p className="text-gray-500 mb-4">The shop you are looking for doesn't exist or has been removed.</p>
+        <h2 className="text-xl font-bold text-gray-800 mb-2">Factory not found</h2>
+        <p className="text-gray-500 mb-4">The factory you are looking for does not exist or has been removed.</p>
         <button onClick={() => navigate('/')} className="mt-4 px-6 py-2 bg-rose-500 text-white rounded-full font-bold text-sm hover:bg-rose-600 transition">Back to Map</button>
       </div>
     );
@@ -135,7 +135,7 @@ const ShopDetailPage: React.FC = () => {
         <button 
           onClick={handleShare} 
           className="p-2 -mr-2 hover:bg-gray-100 rounded-full transition active:scale-95"
-          aria-label="Share this shop"
+          aria-label="Share this factory"
         >
           <Share2 size={20} className="text-gray-500" />
         </button>
@@ -156,12 +156,16 @@ const ShopDetailPage: React.FC = () => {
         {/* Info Card */}
         <div className="bg-white -mt-6 relative rounded-t-3xl px-6 pt-8 pb-6 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
           <h1 className="text-2xl font-bold text-gray-900 mb-1">{shop.name}</h1>
-          
-          <div className="flex items-center gap-1 mb-6">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <Star key={i} size={14} fill="#FBBF24" className="text-yellow-400" />
-            ))}
-            <span className="text-xs text-gray-400 ml-1 font-medium">Verified Listing</span>
+          {shop.main_product?.trim() ? (
+            <p className="text-sm font-semibold text-slate-600 mb-4">
+              Main product: <span className="text-slate-900">{shop.main_product.trim()}</span>
+            </p>
+          ) : null}
+
+          <div className="flex items-center gap-2 mb-6">
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1">
+              Verified supplier listing
+            </span>
           </div>
 
           <div className="grid grid-cols-2 gap-4 mb-6">
@@ -178,7 +182,7 @@ const ShopDetailPage: React.FC = () => {
                 <a href={`tel:${shop.phone}`} className="p-2 bg-white rounded-full shadow-sm text-rose-500 w-fit">
                   <Phone size={20} />
                 </a>
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Call Us</span>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Call supplier</span>
                 <p className="text-sm text-gray-700 font-bold">{shop.phone}</p>
               </div>
             )}
@@ -188,7 +192,7 @@ const ShopDetailPage: React.FC = () => {
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-2">
                 <Info size={18} className="text-rose-500" />
-                <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide">About Me</h3>
+                <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide">Factory profile</h3>
               </div>
               <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-line bg-rose-50/50 p-4 rounded-2xl border border-rose-100">
                 {shop.about_me}
@@ -200,7 +204,7 @@ const ShopDetailPage: React.FC = () => {
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-2">
                 <DollarSign size={18} className="text-green-600" />
-                <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide">Price Info</h3>
+                <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide">Commercial terms</h3>
               </div>
               <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line bg-green-50/50 p-4 rounded-2xl border border-green-100 font-medium">
                 {shop.additional_price}

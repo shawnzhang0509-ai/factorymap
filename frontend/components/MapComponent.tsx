@@ -63,7 +63,7 @@ const createShopIcon = (shop: Shop, isSelected: boolean): L.DivIcon => {
   if (finalImageUrl) {
     const img = document.createElement('img');
     img.src = finalImageUrl;
-    img.alt = shop.name || 'SPA';
+    img.alt = shop.name || 'Factory';
     img.style.width = '100%';
     img.style.height = '100%';
     img.style.objectFit = 'cover';
@@ -75,7 +75,7 @@ const createShopIcon = (shop: Shop, isSelected: boolean): L.DivIcon => {
       }
       if (!circle.querySelector('span')) {
         const span = document.createElement('span');
-        span.textContent = 'SPA';
+        span.textContent = '厂';
         span.style.color = 'white';
         span.style.fontSize = '10px';
         span.style.fontWeight = 'bold';
@@ -90,7 +90,7 @@ const createShopIcon = (shop: Shop, isSelected: boolean): L.DivIcon => {
   } else {
     if (!circle.querySelector('span')) {
       const span = document.createElement('span');
-      span.textContent = 'SPA';
+      span.textContent = '厂';
       span.style.color = 'white';
       span.style.fontSize = '10px';
       span.style.fontWeight = 'bold';

@@ -1,7 +1,5 @@
 {
-  "name": "New Zealand Massage Map",
-  "description": "A mobile-first massage shop locator for New Zealand with real-time mapping, SMS booking, and administrative management.",
-  "requestFramePermissions": [
-    "geolocation"
-  ]
+  "name": "China Factory Map",
+  "description": "Mobile-first map of verified Chinese manufacturers and suppliers for overseas buyers, with MOQ filters, industrial-zone search, and admin tools.",
+  "requestFramePermissions": ["geolocation"]
 }

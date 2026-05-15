@@ -6,12 +6,12 @@ const AboutPage: React.FC = () => {
   const fallback = (
     <>
       <p className="text-gray-600 mb-4">
-        Massage Shops NZ is a local discovery platform that helps users find massage shops on the map,
-        view shop details, and contact shops quickly.
+        China Factory Map helps international buyers discover manufacturing suppliers across major industrial belts in
+        China, review credentials, and contact factories quickly.
       </p>
       <p className="text-gray-600 mb-4">
-        We are continuously improving listing quality, shop management tools, and analytics to create a
-        better experience for both customers and shop owners.
+        We are continuously improving listing quality, verification workflows, and admin tools so sourcing teams can
+        work with clearer factory data.
       </p>
     </>
   );
