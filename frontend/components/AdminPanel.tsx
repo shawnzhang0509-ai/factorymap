@@ -270,10 +270,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 <Table2 size={14} /> Bulk import (Excel)
               </div>
               <p className="text-[11px] text-slate-500 leading-relaxed">
-                Download the template, fill one row per factory. Required headers:{' '}
-                <span className="font-mono text-slate-700">name, address, phone, lat, lng</span>
-                . Chinese header names like 名称 / 地址 are also accepted. Up to 500 rows per file. Pictures are not
-                imported—add them after each factory exists.
+                Upload your industrial-belt sheet as-is when headers include{' '}
+                <span className="font-mono text-slate-700">企业名称, 详细地址, 联系电话, 纬度, 经度</span>
+                (or English <span className="font-mono">name, address, phone, lat, lng</span>). Extra columns such as{' '}
+                统一社会信用代码 / 注册资本 / 企业状态 / 数据来源 are saved into the factory profile (description). Up to
+                500 rows; photos are not imported.
               </p>
               <div className="flex flex-wrap gap-2">
                 <button
