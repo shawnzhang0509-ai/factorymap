@@ -330,6 +330,13 @@ def get_shop_detail(slug):
     return jsonify(shop.to_dict())
 
 
+@shop_bp.route('/shops/count', methods=['GET'])
+@shop_bp.route('/shop/shops/count', methods=['GET'])
+def get_shop_count():
+    """Public factory count — useful for verifying database state after bulk import."""
+    return jsonify({"count": Shop.query.count()})
+
+
 @shop_bp.route('/shops', methods=['GET'])
 @shop_bp.route('/shop/shops', methods=['GET'])
 def get_all_shops():

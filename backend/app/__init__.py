@@ -77,6 +77,40 @@ def _ensure_user_ad_manager_column():
         print(f"⚠️ users.is_ad_manager schema check skipped: {e}")
 
 
+_LEGACY_PAGE_MARKERS = (
+    "massage",
+    "therapist",
+    "spa service",
+    "18 years of age",
+    "18+",
+    "new zealand massage",
+    "massageshop",
+)
+
+
+def _migrate_legacy_site_pages():
+    """Clear CMS HTML left over from the massage-map era so B2B fallbacks show."""
+    try:
+        from app.models.site_page import SitePage
+
+        rows = db.session.query(SitePage).filter(SitePage.slug.in_(("about", "terms"))).all()
+        changed = 0
+        for row in rows:
+            html = (row.content_html or "").strip()
+            if not html:
+                continue
+            lower = html.lower()
+            if any(marker in lower for marker in _LEGACY_PAGE_MARKERS):
+                row.content_html = ""
+                changed += 1
+        if changed:
+            db.session.commit()
+            print(f"✅ Cleared legacy massage-map HTML from {changed} site page(s)")
+    except Exception as e:
+        db.session.rollback()
+        print(f"⚠️ site_pages legacy cleanup skipped: {e}")
+
+
 def create_app():
     app = Flask(__name__)
 
@@ -149,6 +183,7 @@ def create_app():
         _ensure_shop_min_spend_column()
         _ensure_shop_main_product_column()
         _ensure_user_ad_manager_column()
+        _migrate_legacy_site_pages()
 
     @app.route('/')
     def home():

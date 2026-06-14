@@ -81,7 +81,7 @@ def _upload_cloudinary(file) -> tuple[str, str]:
 
     upload_result = cloudinary.uploader.upload(
         file,
-        folder='nz_massage_images',
+        folder='china_factory_images',
         allowed_formats=['jpg', 'jpeg', 'png', 'webp'],
     )
     return upload_result['secure_url'], upload_result['public_id']

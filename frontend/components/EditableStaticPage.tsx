@@ -12,6 +12,21 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 type PageKey = 'about' | 'terms';
 
+const LEGACY_PAGE_MARKERS = [
+  'massage',
+  'therapist',
+  'spa service',
+  '18 years of age',
+  '18+',
+  'new zealand massage',
+  'massageshop',
+];
+
+function isLegacyMassagePageHtml(html: string): boolean {
+  const lower = html.toLowerCase();
+  return LEGACY_PAGE_MARKERS.some((m) => lower.includes(m));
+}
+
 export type EditableStaticPageHandle = {
   openEditor: () => void;
 };
@@ -125,7 +140,7 @@ export const EditableStaticPage = forwardRef<EditableStaticPageHandle, EditableS
     };
 
     const sanitized =
-      contentHtml && contentHtml.trim() !== ''
+      contentHtml && contentHtml.trim() !== '' && !isLegacyMassagePageHtml(contentHtml)
         ? DOMPurify.sanitize(contentHtml, { USE_PROFILES: { html: true } })
         : '';
 

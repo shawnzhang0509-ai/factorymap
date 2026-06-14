@@ -19,6 +19,7 @@ import type { MoqFilterKey } from '../constants/moqTiers';
 import { shopPassesMoqFilter } from '../constants/moqTiers';
 
 const STORAGE_KEY = 'china_factory_map_v2';
+const LEGACY_STORAGE_KEY = 'nz_massage_shops_v1';
 const SHARE_TOOLTIP_SEEN_KEY = 'china_factory_share_tip_v1';
 /** Session only: show location FAB hint again on new visit / new tab */
 const LOCATION_FAB_TIP_DISMISSED_KEY = 'china_factory_loc_tip_session';
@@ -47,6 +48,32 @@ function normalizeShopFromApi(shop: any, apiBase: string): Shop {
   };
 }
 
+function loadShopsFromStorage(apiBase: string): Shop[] {
+  if (typeof window === 'undefined') return [];
+  const keys = [STORAGE_KEY, LEGACY_STORAGE_KEY];
+  for (const key of keys) {
+    const saved = localStorage.getItem(key);
+    if (!saved) continue;
+    try {
+      const parsed = JSON.parse(saved) as unknown;
+      if (!Array.isArray(parsed) || parsed.length === 0) continue;
+      const shops = parsed.map((s) => normalizeShopFromApi(s, apiBase));
+      if (key === LEGACY_STORAGE_KEY) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(shops));
+          localStorage.removeItem(LEGACY_STORAGE_KEY);
+        } catch {
+          /* ignore */
+        }
+      }
+      return shops;
+    } catch {
+      /* try next key */
+    }
+  }
+  return [];
+}
+
 /** Keep collapsed strip low so map stays large; affordance is the FAB + safe-area anchoring */
 const COLLAPSED_HEIGHT = 84;
 const EXPANDED_HEIGHT = 380;
@@ -73,19 +100,7 @@ const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const [shops, setShops] = useState<Shop[]>(() => {
-    if (typeof window === 'undefined') return [];
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) return [];
-    try {
-      const parsed = JSON.parse(saved) as any[];
-      return Array.isArray(parsed)
-        ? parsed.map((s) => normalizeShopFromApi(s, API_BASE_URL))
-        : [];
-    } catch {
-      return [];
-    }
-  });
+  const [shops, setShops] = useState<Shop[]>(() => loadShopsFromStorage(API_BASE_URL));
 
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
@@ -713,11 +728,21 @@ const HomePage: React.FC = () => {
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       const fixedData = data.map((shop: any) => normalizeShopFromApi(shop, API_BASE_URL));
-      setShops(fixedData);
+      if (fixedData.length > 0) {
+        setShops(fixedData);
+      } else {
+        const cached = loadShopsFromStorage(API_BASE_URL);
+        if (cached.length > 0) {
+          console.warn('API returned no factories — keeping cached listings');
+          setShops(cached);
+        } else {
+          setShops([]);
+        }
+      }
     } catch (error) {
       console.error('❌ Load failed:', error);
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setShops(JSON.parse(saved));
+      const cached = loadShopsFromStorage(API_BASE_URL);
+      if (cached.length > 0) setShops(cached);
     }
   };
 
@@ -732,7 +757,8 @@ const HomePage: React.FC = () => {
       });
       if (!res.ok) throw new Error('Network response was not ok');
       const raw = await res.json();
-      setShops(raw.map((shop: any) => normalizeShopFromApi(shop, API_BASE_URL)));
+      const results = raw.map((shop: any) => normalizeShopFromApi(shop, API_BASE_URL));
+      setShops(results.length > 0 ? results : loadShopsFromStorage(API_BASE_URL));
       setAppliedSearchKeyword(keyword.trim());
     } catch (err) { alert("Search failed"); } 
     finally { setIsSearching(false); }
@@ -963,7 +989,14 @@ const HomePage: React.FC = () => {
     setShowCreateAd(true);
   };
 
-  useEffect(() => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(shops)); } catch (e) {} }, [shops]);
+  useEffect(() => {
+    if (shops.length === 0) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(shops));
+    } catch {
+      /* ignore */
+    }
+  }, [shops]);
   useEffect(() => { fetchShops(); }, []);
 
   return (

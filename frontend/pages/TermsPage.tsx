@@ -29,63 +29,62 @@ const TermsPage: React.FC = () => {
       <div className="flex items-center gap-3 text-rose-600 bg-rose-50 p-4 rounded-xl">
         <ShieldCheck className="w-8 h-8 flex-shrink-0" />
         <div>
-          <h2 className="font-bold text-lg">User Agreement</h2>
-          <p className="text-sm opacity-90">Please read carefully before using our services.</p>
+          <h2 className="font-bold text-lg">Terms of Use</h2>
+          <p className="text-sm opacity-90">China Factory Map — B2B supplier directory</p>
         </div>
       </div>
 
       <section>
-        <h3 className="text-lg font-bold text-gray-900 mb-2">1. Age Restriction (18+ Only)</h3>
+        <h3 className="text-lg font-bold text-gray-900 mb-2">1. Purpose of Service</h3>
         <p className="text-gray-600 leading-relaxed">
-          By accessing this website and using our services, you confirm that you are at least{' '}
-          <strong>18 years of age</strong> or the legal age of majority in your jurisdiction. This platform
-          contains information related to adult massage and spa services. If you are under 18, please exit
-          immediately.
+          China Factory Map is an information directory that helps international buyers discover manufacturing
+          suppliers in China. We do not manufacture goods, broker contracts, or guarantee supplier performance.
+          All sourcing, due diligence, negotiations, and transactions are conducted directly between you and the
+          listed factory.
         </p>
       </section>
 
       <section>
-        <h3 className="text-lg font-bold text-gray-900 mb-2">2. Purpose of Service</h3>
+        <h3 className="text-lg font-bold text-gray-900 mb-2">2. Listing Accuracy</h3>
         <p className="text-gray-600 leading-relaxed">
-          Our platform is an information directory connecting users with independent massage therapists and spa
-          businesses. We do not provide services directly. All transactions and appointments are made directly
-          between the user and the service provider.
+          Factory profiles, credentials, MOQ tiers, and contact details are provided by suppliers or administrators
+          and may change without notice. You are responsible for independently verifying business licenses, export
+          qualifications, product samples, and compliance before placing orders.
         </p>
       </section>
 
       <section>
-        <h3 className="text-lg font-bold text-gray-900 mb-2">3. Prohibited Activities</h3>
+        <h3 className="text-lg font-bold text-gray-900 mb-2">3. Acceptable Use</h3>
         <ul className="list-disc pl-5 space-y-2 text-gray-600">
-          <li>
-            No illegal activities, including but not limited to sexual services, are permitted or endorsed by
-            this platform.
-          </li>
-          <li>Users must treat all service providers with respect and dignity.</li>
-          <li>Any form of harassment, fraud, or misrepresentation will result in an immediate ban.</li>
+          <li>Use the directory only for legitimate B2B sourcing and supplier research.</li>
+          <li>Do not scrape, spam, harass suppliers, or misrepresent your identity or purchasing intent.</li>
+          <li>Do not upload unlawful, misleading, or infringing content through admin tools.</li>
+          <li>Violations may result in restricted access or removal of listings.</li>
         </ul>
       </section>
 
       <section>
         <h3 className="text-lg font-bold text-gray-900 mb-2">4. Privacy & Data</h3>
         <p className="text-gray-600 leading-relaxed">
-          We respect your privacy. Location data is used solely for finding nearby services and is not stored
-          permanently on our servers without consent. Please refer to our Privacy Policy for detailed information.
+          Location data is used only to show nearby suppliers on the map and is not stored permanently without your
+          consent. Admin accounts and listing edits are stored on our servers. See our privacy practices in the About
+          section or contact us for questions.
         </p>
       </section>
 
       <section>
         <h3 className="text-lg font-bold text-gray-900 mb-2">5. Limitation of Liability</h3>
         <p className="text-gray-600 leading-relaxed">
-          We are not responsible for any disputes, injuries, or losses arising from interactions between users and
-          service providers. Users engage with providers at their own risk.
+          We are not liable for disputes, product defects, payment losses, shipping issues, or other damages arising
+          from your dealings with any listed supplier. Use of this directory is at your own risk.
         </p>
       </section>
 
       <div className="pt-6 border-t border-gray-100">
         <p className="text-xs text-gray-400 text-center">
-          Last Updated: March 2026
+          Last Updated: June 2026
           <br />
-          By using this app, you agree to these terms.
+          By using China Factory Map, you agree to these terms.
         </p>
       </div>
     </div>
