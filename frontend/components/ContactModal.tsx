@@ -26,16 +26,16 @@ const ContactModal: React.FC<ContactModalProps> = ({ onClose }) => {
           </button>
         </div>
         <p className="text-gray-600 mb-6">
-          您可以通过以下方式联系我们：
+          如需商务合作、数据纠错或技术支持，请通过以下方式联系我们：
         </p>
         <div className="space-y-4">
           <div className="flex items-center space-x-3">
-            <span>📞</span>
-            <span>+64 21 123 4567</span>
+            <span>📧</span>
+            <span>contact@factorymap.app</span>
           </div>
           <div className="flex items-center space-x-3">
-            <span>📧</span>
-            <span>contact@massageshop.nz</span>
+            <span>🌐</span>
+            <span>China Factory Map — B2B supplier directory</span>
           </div>
         </div>
       </div>
