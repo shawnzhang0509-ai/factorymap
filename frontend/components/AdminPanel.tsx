@@ -24,6 +24,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const [error, setError] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkSummary, setBulkSummary] = useState<string | null>(null);
+  const [bulkImportOk, setBulkImportOk] = useState<boolean | null>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
   
   const [newShop, setNewShop] = useState<Partial<ShopCreate>>({
@@ -158,6 +159,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const downloadBulkTemplate = async () => {
     setBulkSummary(null);
+    setBulkImportOk(null);
     setError('');
     const base = getApiBaseUrl();
     setBulkLoading(true);
@@ -193,6 +195,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     e.target.value = '';
     if (!file) return;
     setBulkSummary(null);
+    setBulkImportOk(null);
     setError('');
     const base = getApiBaseUrl();
     if (!file.name.toLowerCase().endsWith('.xlsx')) {
@@ -212,18 +215,58 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       const result = await res.json();
       if (!res.ok) {
         setError(result.error || 'Import failed');
+        setBulkImportOk(false);
         return;
       }
+      const createdCount = result.summary?.created_count ?? 0;
+      const skippedCount = result.summary?.skipped_count ?? 0;
+      const errorCount = result.summary?.error_count ?? 0;
+
+      let dbCount: number | null = null;
+      try {
+        const countRes = await fetch(`${base}/shop/shops/count`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (countRes.ok) {
+          const countData = await countRes.json();
+          dbCount = typeof countData.count === 'number' ? countData.count : null;
+        }
+      } catch {
+        /* server may still be waking up */
+      }
+
       const lines = [
-        `Created: ${result.summary?.created_count ?? 0}`,
-        `Skipped (duplicate name): ${result.summary?.skipped_count ?? 0}`,
-        `Errors: ${result.summary?.error_count ?? 0}`,
+        `API server: ${base}`,
+        dbCount != null
+          ? `Database total: ${dbCount} factories`
+          : 'Database total: could not verify (server slow or offline)',
+        `Created: ${createdCount}`,
+        `Skipped (duplicate name): ${skippedCount}`,
+        `Errors: ${errorCount}`,
       ];
       if (result.errors?.length) {
         const parts = (result.errors as { row: number; message: string }[])
           .slice(0, 5)
           .map((x) => `row ${x.row}: ${x.message}`);
         lines.push(`First errors: ${parts.join('; ')}`);
+      }
+      if (createdCount === 0) {
+        lines.push('');
+        if (skippedCount > 0) {
+          lines.push('No new rows saved — these factory names already exist in the database.');
+        } else if (errorCount > 0) {
+          lines.push('No rows saved — fix the Excel errors above and try again.');
+        } else {
+          lines.push('No new factories were added (empty file or no valid rows).');
+        }
+        lines.push('Other devices only see data stored on the server. Hard-refresh this page to confirm.');
+        setBulkImportOk(false);
+      } else {
+        lines.push('');
+        lines.push(
+          `${createdCount} factories saved to the server. Mobile should see them after refresh (wait ~1 min if backend is waking up).`
+        );
+        setBulkImportOk(true);
       }
       setBulkSummary(lines.join('\n'));
       const created = result.created as Shop[] | undefined;
@@ -233,6 +276,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     } catch (err) {
       console.error(err);
       setError('Network error during import');
+      setBulkImportOk(false);
     } finally {
       setBulkLoading(false);
     }
@@ -297,7 +341,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 />
               </div>
               {bulkSummary && (
-                <pre className="text-[11px] text-slate-700 whitespace-pre-wrap font-sans bg-white/80 rounded-lg p-2 border border-slate-100">
+                <pre
+                  className={`text-[11px] whitespace-pre-wrap font-sans rounded-lg p-3 border ${
+                    bulkImportOk
+                      ? 'text-emerald-900 bg-emerald-50 border-emerald-200'
+                      : 'text-amber-950 bg-amber-50 border-amber-200'
+                  }`}
+                >
                   {bulkSummary}
                 </pre>
               )}
