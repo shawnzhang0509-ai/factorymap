@@ -7,8 +7,9 @@ import React, {
 } from 'react';
 import DOMPurify from 'dompurify';
 import { AdminRichTextEditor } from './AdminRichTextEditor';
+import { getApiBaseUrl } from '../config/api';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE = getApiBaseUrl();
 
 type PageKey = 'about' | 'terms';
 

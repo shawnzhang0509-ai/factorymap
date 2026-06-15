@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shop } from '../types';
+import { getApiBaseUrl } from '../config/api';
+
+const API_BASE_URL = getApiBaseUrl();
 
 const MyAdsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -8,7 +11,6 @@ const MyAdsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
   const username = localStorage.getItem('admin_username') || '';
   const token = localStorage.getItem('auth_token') || '';
   const isLoggedIn = localStorage.getItem('admin_logged_in') === 'true';
