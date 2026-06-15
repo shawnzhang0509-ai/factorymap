@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, memo } from 'react';
 import L from 'leaflet';
 import { Shop, UserLocation } from '../types';
+import { getApiBaseUrl } from '../config/api';
 
 // ✅ 1. 接口增加 zoom 属性
 interface MapComponentProps {
@@ -54,7 +55,7 @@ const createShopIcon = (shop: Shop, isSelected: boolean): L.DivIcon => {
     if (rawUrl.startsWith('http')) {
       finalImageUrl = rawUrl;
     } else {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:5000';
+      const baseUrl = getApiBaseUrl();
       const cleanPath = rawUrl.startsWith('/') ? rawUrl.slice(1) : rawUrl;
       finalImageUrl = `${baseUrl}/uploads/${cleanPath}`;
     }
@@ -169,7 +170,22 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
       mapRef.current?.invalidateSize({ animate: false });
     });
 
+    const invalidate = () => {
+      window.requestAnimationFrame(() => {
+        mapRef.current?.invalidateSize({ animate: false });
+      });
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') invalidate();
+    };
+    window.addEventListener('resize', invalidate);
+    window.addEventListener('orientationchange', invalidate);
+    document.addEventListener('visibilitychange', onVisible);
+
     return () => {
+      window.removeEventListener('resize', invalidate);
+      window.removeEventListener('orientationchange', invalidate);
+      document.removeEventListener('visibilitychange', onVisible);
       userMarkerRef.current = null;
       markersRef.current = {};
       markerSelectionRef.current = {};

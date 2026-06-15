@@ -6,7 +6,9 @@ import { ArrowLeft, MapPin, Phone, ExternalLink, Share2, Info, DollarSign } from
 // ✅ 引入新的图片组件
 import ImageGallery from '../components/ImageGallery'; 
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+import { getApiBaseUrl } from '../config/api';
+
+const API_BASE_URL = getApiBaseUrl();
 
 const ShopDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
