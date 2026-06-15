@@ -1,6 +1,7 @@
 // components/LoginModal.tsx
 import React, { useState } from 'react';
 import { X, Lock } from 'lucide-react';
+import { getApiBaseUrl } from '../config/api';
 
 interface LoginModalProps {
   onLoginSuccess: (payload: { username: string; token: string; isAdmin: boolean; isAdManager: boolean }) => void;
@@ -17,12 +18,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
     e.preventDefault();
 
     try {
-      // ✅ 从环境变量读取 API 基础 URL（HTTPS）
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-      if (!API_BASE_URL) {
-        throw new Error('API base URL is not configured');
-      }
+      const API_BASE_URL = getApiBaseUrl();
 
       const endpoint = mode === 'register' ? '/register' : '/login';
       const res = await fetch(`${API_BASE_URL}${endpoint}`, {

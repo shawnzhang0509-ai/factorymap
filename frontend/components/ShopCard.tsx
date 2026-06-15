@@ -8,6 +8,7 @@ import { getTagStyle } from '../constants';
 import { CHINA_ECONOMIC_ZONES } from '../constants/filterRegions';
 import { MOQ_TIER_FORM_OPTIONS, moqTierLabel } from '../constants/moqTiers';
 import { credentialIdsFromBadgeText } from '../constants/factoryCredentials';
+import { getApiBaseUrl } from '../config/api';
 
 interface ShopCardProps {
   shop: Shop;
@@ -250,7 +251,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
     }
 
     // 2. 准备数据
-    const apiUrl = import.meta.env.VITE_API_BASE_URL;
+    const apiUrl = getApiBaseUrl();
     const trackData = {
         shop_id: shop.id,
         type: type,
@@ -291,11 +292,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
 };
      // ... 原有的 handleSave 代码 ...
   const handleSave = async () => {
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-    if (!API_BASE_URL) {
-      alert('❌ 错误：API URL 未配置');
-      return;
-    }
+    const API_BASE_URL = getApiBaseUrl();
 
     const formData = new FormData();
     formData.append('name', editData.name);
@@ -938,7 +935,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
               // 4️⃣ 其他相对路径 → API uploads
               if (!optimizedUrl.startsWith('http')) {
-                const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+                const apiBase = getApiBaseUrl();
                 const base = apiBase.endsWith('/') ? apiBase : `${apiBase}/`;
                 const path = optimizedUrl.startsWith('/') ? optimizedUrl.slice(1) : optimizedUrl;
                 optimizedUrl = `${base}uploads/${path}`;

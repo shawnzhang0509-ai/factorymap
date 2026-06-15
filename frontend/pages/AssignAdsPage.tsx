@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shop } from '../types';
+import { getApiBaseUrl } from '../config/api';
+
+const API_BASE_URL = getApiBaseUrl();
 
 interface UserItem {
   id: number;
@@ -17,7 +20,6 @@ interface OwnerRow {
 
 const AssignAdsPage: React.FC = () => {
   const navigate = useNavigate();
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
   const token = localStorage.getItem('auth_token') || '';
   const isLoggedIn = localStorage.getItem('admin_logged_in') === 'true';
   const isAdmin = localStorage.getItem('is_admin') === 'true';

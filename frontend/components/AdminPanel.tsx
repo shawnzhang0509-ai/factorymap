@@ -3,6 +3,7 @@ import { X, Upload, Info, DollarSign, MapPin, Table2, Download } from 'lucide-re
 import { ShopCreate, Shop } from './types';
 import { CHINA_ECONOMIC_ZONES } from '../constants/filterRegions';
 import { MOQ_TIER_FORM_OPTIONS } from '../constants/moqTiers';
+import { getApiBaseUrl } from '../config/api';
 
 interface AdminPanelProps {
   onAddShop: (shop: Shop) => void;
@@ -62,7 +63,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     setIsSubmitting(true); 
     setError('');
 
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+    const API_BASE_URL = getApiBaseUrl();
     const add_api_url = `${API_BASE_URL}/shop/add`;
     const formData = new FormData();
     
@@ -158,11 +159,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const downloadBulkTemplate = async () => {
     setBulkSummary(null);
     setError('');
-    const base = import.meta.env.VITE_API_BASE_URL;
-    if (!base) {
-      setError('API base URL is not configured');
-      return;
-    }
+    const base = getApiBaseUrl();
     setBulkLoading(true);
     try {
       const token = localStorage.getItem('auth_token') || '';
@@ -197,11 +194,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     if (!file) return;
     setBulkSummary(null);
     setError('');
-    const base = import.meta.env.VITE_API_BASE_URL;
-    if (!base) {
-      setError('API base URL is not configured');
-      return;
-    }
+    const base = getApiBaseUrl();
     if (!file.name.toLowerCase().endsWith('.xlsx')) {
       setError('Please choose a .xlsx file');
       return;

@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { getApiBaseUrl } from '../config/api';
+
+const API_BASE_URL = getApiBaseUrl();
 
 interface DailyShopStatItem {
   date: string;
@@ -28,7 +31,6 @@ const AdminStats: React.FC = () => {
   const [endDate, setEndDate] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
   const token = localStorage.getItem('auth_token') || '';
   const isAdmin = localStorage.getItem('is_admin') === 'true';
 
