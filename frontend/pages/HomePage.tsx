@@ -106,6 +106,11 @@ const HomePage: React.FC = () => {
     if (typeof window === 'undefined') return 'loading';
     return loadShopsFromStorage(API_BASE_URL).length > 0 ? 'ready' : 'loading';
   });
+  /** Whether the current list came from the server or local cache only */
+  const [shopsDataSource, setShopsDataSource] = useState<'server' | 'cache' | 'cache-stale'>(() => {
+    if (typeof window === 'undefined') return 'server';
+    return loadShopsFromStorage(API_BASE_URL).length > 0 ? 'cache' : 'server';
+  });
 
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
@@ -723,7 +728,8 @@ const HomePage: React.FC = () => {
   };
 
   // Business Logic
-  const fetchShops = async () => {
+  const fetchShops = async (attempt = 1) => {
+    const MAX_ATTEMPTS = 4;
     setShopsLoadStatus('loading');
     try {
       const token = localStorage.getItem('auth_token') || '';
@@ -740,25 +746,34 @@ const HomePage: React.FC = () => {
       if (fixedData.length > 0) {
         setShops(fixedData);
         setShopsLoadStatus('ready');
+        setShopsDataSource('server');
       } else {
         const cached = loadShopsFromStorage(API_BASE_URL);
         if (cached.length > 0) {
           console.warn('API returned no factories — keeping cached listings');
           setShops(cached);
           setShopsLoadStatus('ready');
+          setShopsDataSource('cache-stale');
         } else {
           setShops([]);
           setShopsLoadStatus('empty');
+          setShopsDataSource('server');
         }
       }
     } catch (error) {
       console.error('❌ Load failed:', error);
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, 8000 * attempt));
+        return fetchShops(attempt + 1);
+      }
       const cached = loadShopsFromStorage(API_BASE_URL);
       if (cached.length > 0) {
         setShops(cached);
         setShopsLoadStatus('ready');
+        setShopsDataSource('cache');
       } else {
         setShopsLoadStatus('error');
+        setShopsDataSource('server');
       }
     }
   };
@@ -1110,6 +1125,26 @@ const HomePage: React.FC = () => {
             mapPanNonce={mapPanNonce}
           />
         </div>
+
+        {shopsDataSource !== 'server' && shops.length > 0 && (
+          <div className="absolute left-3 right-3 top-[calc(env(safe-area-inset-top,0px)+6.5rem)] z-[1002] pointer-events-auto">
+            <div className="rounded-xl bg-sky-50 border border-sky-200 px-4 py-3 text-sm text-sky-950 shadow-lg">
+              <p className="font-semibold">Showing cached data on this device only</p>
+              <p className="mt-1 text-xs opacity-90">
+                {shopsDataSource === 'cache-stale'
+                  ? 'The server returned 0 factories, but this browser still has an old local copy. Other phones will not see these listings until import succeeds on the server.'
+                  : 'Cannot reach the server right now. Other devices will not see this data.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => void fetchShops()}
+                className="mt-2 px-3 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-semibold"
+              >
+                Retry from server
+              </button>
+            </div>
+          </div>
+        )}
 
         {shops.length === 0 && shopsLoadStatus === 'error' && (
           <div className="absolute left-3 right-3 top-[calc(env(safe-area-inset-top,0px)+6.5rem)] z-[1002] pointer-events-auto">
@@ -1492,6 +1527,7 @@ const HomePage: React.FC = () => {
           onClose={() => setShowCreateAd(false)}
           existingShopNamesLower={existingShopNamesLower}
           onBulkShopsImported={(newShops) => {
+            setShopsDataSource('server');
             setShops((prev) => {
               const seen = new Set(prev.map((s) => s.name.trim().toLowerCase()));
               const merged = [...prev];
