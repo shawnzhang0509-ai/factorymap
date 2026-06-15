@@ -17,6 +17,7 @@ import { parseMinSpend } from '../constants/minSpend';
 import { credentialIdsFromBadgeText, FACTORY_CREDENTIAL_IDS } from '../constants/factoryCredentials';
 import type { MoqFilterKey } from '../constants/moqTiers';
 import { shopPassesMoqFilter } from '../constants/moqTiers';
+import { getApiBaseUrl } from '../config/api';
 
 const STORAGE_KEY = 'china_factory_map_v2';
 const LEGACY_STORAGE_KEY = 'nz_massage_shops_v1';
@@ -25,7 +26,7 @@ const SHARE_TOOLTIP_SEEN_KEY = 'china_factory_share_tip_v1';
 const LOCATION_FAB_TIP_DISMISSED_KEY = 'china_factory_loc_tip_session';
 const TERMS_ACCEPTED_KEY = 'china_factory_map_terms_v1';
 const LEGACY_TERMS_KEY = 'age_verified';
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = getApiBaseUrl();
 
 /** Align list payload with UI: picture URLs, MOQ tier, main product */
 function normalizeShopFromApi(shop: any, apiBase: string): Shop {
@@ -101,6 +102,10 @@ const HomePage: React.FC = () => {
   const [searchParams] = useSearchParams();
 
   const [shops, setShops] = useState<Shop[]>(() => loadShopsFromStorage(API_BASE_URL));
+  const [shopsLoadStatus, setShopsLoadStatus] = useState<'loading' | 'ready' | 'error' | 'empty'>(() => {
+    if (typeof window === 'undefined') return 'loading';
+    return loadShopsFromStorage(API_BASE_URL).length > 0 ? 'ready' : 'loading';
+  });
 
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
@@ -719,32 +724,74 @@ const HomePage: React.FC = () => {
 
   // Business Logic
   const fetchShops = async () => {
+    setShopsLoadStatus('loading');
     try {
-      console.log(API_BASE_URL);
       const token = localStorage.getItem('auth_token') || '';
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 45000);
       const response = await fetch(`${API_BASE_URL}/shops`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        signal: controller.signal,
       });
+      window.clearTimeout(timeoutId);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       const fixedData = data.map((shop: any) => normalizeShopFromApi(shop, API_BASE_URL));
       if (fixedData.length > 0) {
         setShops(fixedData);
+        setShopsLoadStatus('ready');
       } else {
         const cached = loadShopsFromStorage(API_BASE_URL);
         if (cached.length > 0) {
           console.warn('API returned no factories — keeping cached listings');
           setShops(cached);
+          setShopsLoadStatus('ready');
         } else {
           setShops([]);
+          setShopsLoadStatus('empty');
         }
       }
     } catch (error) {
       console.error('❌ Load failed:', error);
       const cached = loadShopsFromStorage(API_BASE_URL);
-      if (cached.length > 0) setShops(cached);
+      if (cached.length > 0) {
+        setShops(cached);
+        setShopsLoadStatus('ready');
+      } else {
+        setShopsLoadStatus('error');
+      }
     }
   };
+
+  const emptyListMessage = useMemo(() => {
+    if (shops.length === 0) {
+      if (shopsLoadStatus === 'loading') return 'Loading factories…';
+      if (shopsLoadStatus === 'error') {
+        return 'Cannot reach the server. Check your network, or wait for the backend to wake up, then tap Retry below.';
+      }
+      if (shopsLoadStatus === 'empty') {
+        return 'No factories in the database yet. An admin can upload an Excel file from the + button.';
+      }
+    }
+    if (useNearbyFilter && userLocation) {
+      return `No factories within ${radiusKm}km of your location. Tap the green filter button (top right) to show all of China.`;
+    }
+    if (selectedTags.length > 0) return 'No factories match the selected credentials.';
+    if (selectedRegions.length > 0 && !selectedRegions.includes('All China')) {
+      return 'No factories in the selected regions.';
+    }
+    if (moqFilter != null) return 'No factories match the MOQ filter.';
+    return 'No factories match the current filters.';
+  }, [
+    shops.length,
+    shopsLoadStatus,
+    useNearbyFilter,
+    userLocation,
+    radiusKm,
+    selectedTags.length,
+    selectedRegions,
+    moqFilter,
+  ]);
 
   const handleSearch = async (keyword: string) => {
     setIsSearching(true);
@@ -1064,6 +1111,24 @@ const HomePage: React.FC = () => {
           />
         </div>
 
+        {shops.length === 0 && shopsLoadStatus === 'error' && (
+          <div className="absolute left-3 right-3 top-[calc(env(safe-area-inset-top,0px)+6.5rem)] z-[1002] pointer-events-auto">
+            <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-950 shadow-lg">
+              <p className="font-semibold">Could not load factory data</p>
+              <p className="mt-1 text-xs opacity-90">
+                Your phone may not have cached data like your computer. Check network or tap Retry.
+              </p>
+              <button
+                type="button"
+                onClick={() => void fetchShops()}
+                className="mt-2 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+
         {showShareTooltip && (
           <button
             type="button"
@@ -1341,10 +1406,26 @@ const HomePage: React.FC = () => {
                         );
                       })
                     ) : (
-                      <div className="text-white font-bold bg-black/40 backdrop-blur-md p-8 rounded-xl text-center min-w-[300px] shadow-lg">
-                        {selectedTags.length > 0
-                          ? `No factories match the selected credentials.`
-                          : 'No factories match the current filters.'}
+                      <div className="text-white font-bold bg-black/40 backdrop-blur-md p-8 rounded-xl text-center min-w-[300px] shadow-lg space-y-3">
+                        <p>{emptyListMessage}</p>
+                        {shopsLoadStatus === 'error' && (
+                          <button
+                            type="button"
+                            onClick={() => void fetchShops()}
+                            className="px-4 py-2 rounded-lg bg-rose-600 text-white text-sm font-semibold hover:bg-rose-700"
+                          >
+                            Retry
+                          </button>
+                        )}
+                        {shops.length > 0 && useNearbyFilter && userLocation && (
+                          <button
+                            type="button"
+                            onClick={() => setUseNearbyFilter(false)}
+                            className="px-4 py-2 rounded-lg bg-white text-gray-800 text-sm font-semibold hover:bg-gray-100"
+                          >
+                            Show all factories
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
