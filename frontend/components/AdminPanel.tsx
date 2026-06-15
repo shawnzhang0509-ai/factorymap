@@ -26,6 +26,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const [bulkSummary, setBulkSummary] = useState<string | null>(null);
   const [bulkImportOk, setBulkImportOk] = useState<boolean | null>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
+  const bulkSummaryRef = useRef<HTMLPreElement>(null);
+
+  const revealBulkSummary = () => {
+    requestAnimationFrame(() => {
+      bulkSummaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  };
   
   const [newShop, setNewShop] = useState<Partial<ShopCreate>>({
     name: '',
@@ -207,14 +214,37 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       const token = localStorage.getItem('auth_token') || '';
       const fd = new FormData();
       fd.append('file', file);
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 120000);
       const res = await fetch(`${base}/shop/bulk-import-excel`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: fd,
+        signal: controller.signal,
       });
-      const result = await res.json();
+      window.clearTimeout(timeoutId);
+
+      const rawText = await res.text();
+      let result: {
+        error?: string;
+        summary?: { created_count?: number; skipped_count?: number; error_count?: number };
+        errors?: { row: number; message: string }[];
+        created?: Shop[];
+      };
+      try {
+        result = JSON.parse(rawText);
+      } catch {
+        setError(
+          res.ok
+            ? 'Import failed: server returned an invalid response.'
+            : `Import failed (HTTP ${res.status}). The backend may still be waking up — wait 1 minute and try again.`
+        );
+        setBulkImportOk(false);
+        return;
+      }
+
       if (!res.ok) {
-        setError(result.error || 'Import failed');
+        setError(result.error || `Import failed (HTTP ${res.status})`);
         setBulkImportOk(false);
         return;
       }
@@ -269,13 +299,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         setBulkImportOk(true);
       }
       setBulkSummary(lines.join('\n'));
-      const created = result.created as Shop[] | undefined;
+      revealBulkSummary();
+      const created = result.created;
       if (created?.length && onBulkShopsImported) {
         onBulkShopsImported(created);
       }
     } catch (err) {
       console.error(err);
-      setError('Network error during import');
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setError('Import timed out after 2 minutes. The server may still be waking up — wait and try again.');
+      } else {
+        setError('Network error during import. Check your connection and try again.');
+      }
       setBulkImportOk(false);
     } finally {
       setBulkLoading(false);
@@ -330,7 +365,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-500 text-white text-xs font-bold hover:bg-rose-600 disabled:opacity-50"
                 >
                   <Table2 className="w-4 h-4" />
-                  Upload filled .xlsx
+                  {bulkLoading ? 'Importing…' : 'Upload filled .xlsx'}
                 </button>
                 <input
                   ref={excelInputRef}
@@ -340,8 +375,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                   onChange={(e) => void handleBulkExcelSelected(e)}
                 />
               </div>
+              {bulkLoading && (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-900 leading-relaxed">
+                  <p className="font-bold">Import in progress…</p>
+                  <p className="mt-0.5">
+                    Uploading and saving rows to the server. This can take 1–2 minutes on first request while
+                    Render wakes up. Keep this window open.
+                  </p>
+                </div>
+              )}
               {bulkSummary && (
                 <pre
+                  ref={bulkSummaryRef}
                   className={`text-[11px] whitespace-pre-wrap font-sans rounded-lg p-3 border ${
                     bulkImportOk
                       ? 'text-emerald-900 bg-emerald-50 border-emerald-200'
