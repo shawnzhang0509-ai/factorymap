@@ -1,7 +1,9 @@
-import React, { useEffect, useRef, memo } from 'react';
+import React, { useEffect, useRef, memo, useState } from 'react';
 import L from 'leaflet';
 import { Shop, UserLocation } from '../types';
 import { getApiBaseUrl } from '../config/api';
+import { attachBasemapLayer, MapCoordSystem } from '../config/mapTiles';
+import { wgs84ToGcj02 } from '../utils/coordTransform';
 
 // ✅ 1. 接口增加 zoom 属性
 interface MapComponentProps {
@@ -139,6 +141,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const [coordSystem, setCoordSystem] = useState<MapCoordSystem>('wgs84');
   const markersRef = useRef<{ [key: string]: L.Marker }>({});
   /** Track selection per marker so we do not rebuild all icons on every tap */
   const markerSelectionRef = useRef<{ [key: string]: boolean }>({});
@@ -149,22 +152,39 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
 
   const shopMarkerKey = (s: Shop) => (s.id ? String(s.id) : `${s.name}-${s.lat}`);
 
+  const toMapCoords = (lat: number, lng: number): [number, number] => {
+    if (coordSystem === 'gcj02') {
+      const gcj = wgs84ToGcj02(lat, lng);
+      return [gcj.lat, gcj.lng];
+    }
+    return [lat, lng];
+  };
+
   // 初始化地图
   useEffect(() => {
     if (!mapContainerRef.current) return;
+
+    let cancelled = false;
+    let tileController: Awaited<ReturnType<typeof attachBasemapLayer>> | null = null;
 
     // ✅ 3. 初始化时使用传入的 zoom
     mapRef.current = L.map(mapContainerRef.current, {
       zoomControl: false,
       attributionControl: false
-    }).setView([center.lat, center.lng], zoom);
+    }).setView(toMapCoords(center.lat, center.lng), zoom);
 
     const el = mapRef.current.getContainer();
     el.style.background = 'transparent';
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-    }).addTo(mapRef.current);
+    void attachBasemapLayer(mapRef.current).then((controller) => {
+      if (cancelled || !mapRef.current) {
+        controller.dispose();
+        return;
+      }
+      tileController = controller;
+      setCoordSystem(controller.coordSystem);
+      mapRef.current.invalidateSize({ animate: false });
+    });
 
     requestAnimationFrame(() => {
       mapRef.current?.invalidateSize({ animate: false });
@@ -183,6 +203,8 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
     document.addEventListener('visibilitychange', onVisible);
 
     return () => {
+      cancelled = true;
+      tileController?.dispose();
       window.removeEventListener('resize', invalidate);
       window.removeEventListener('orientationchange', invalidate);
       document.removeEventListener('visibilitychange', onVisible);
@@ -199,13 +221,14 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
   // ✅ 4. 【核心修复】同时监听 center 和 zoom，并应用两者
   useEffect(() => {
     if (mapRef.current) {
+      const [lat, lng] = toMapCoords(center.lat, center.lng);
       // 使用 setView 同时更新位置和缩放级别
-      mapRef.current.setView([center.lat, center.lng], zoom);
+      mapRef.current.setView([lat, lng], zoom);
       
       // 如果想要平滑动画，可以改用下面这行（取消注释即可）：
       // mapRef.current.flyTo([center.lat, center.lng], zoom, { duration: 1.0 });
     }
-  }, [center, zoom]); // 👈 依赖项必须包含 zoom
+  }, [center, zoom, coordSystem]); // 👈 依赖项必须包含 zoom
 
   // 处理圆圈 (Range Circle)
   useEffect(() => {
@@ -217,7 +240,8 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
     }
 
     if (radiusKm > 0 && userLocation) {
-      const circle = L.circle([userLocation.lat, userLocation.lng], {
+      const [lat, lng] = toMapCoords(userLocation.lat, userLocation.lng);
+      const circle = L.circle([lat, lng], {
         radius: radiusKm * 1000,
         color: '#f43f5e',
         fillColor: '#f43f5e',
@@ -228,7 +252,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
       circle.bringToBack();
       rangeCircleRef.current = circle;
     }
-  }, [radiusKm, userLocation]);
+  }, [radiusKm, userLocation, coordSystem]);
 
   // Shop markers: incremental updates (INP — avoid removing/recreating every marker on selection change)
   useEffect(() => {
@@ -260,9 +284,11 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
           selectedShop.name === shop.name &&
           selectedShop.lat === shop.lat);
 
+      const [markerLat, markerLng] = toMapCoords(shop.lat, shop.lng);
+
       let marker = markersRef.current[key];
       if (!marker) {
-        marker = L.marker([shop.lat, shop.lng], { icon: createShopIcon(shop, isSelected) })
+        marker = L.marker([markerLat, markerLng], { icon: createShopIcon(shop, isSelected) })
           .addTo(map)
           .on('click', () => onMarkerClickRef.current(shop));
         markersRef.current[key] = marker;
@@ -271,8 +297,8 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
       }
 
       const ll = marker.getLatLng();
-      if (ll.lat !== shop.lat || ll.lng !== shop.lng) {
-        marker.setLatLng([shop.lat, shop.lng]);
+      if (ll.lat !== markerLat || ll.lng !== markerLng) {
+        marker.setLatLng([markerLat, markerLng]);
       }
 
       if (markerSelectionRef.current[key] !== isSelected) {
@@ -282,19 +308,20 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
     });
 
     if (userLocation) {
+      const [userLat, userLng] = toMapCoords(userLocation.lat, userLocation.lng);
       if (!userMarkerRef.current) {
-        userMarkerRef.current = L.marker([userLocation.lat, userLocation.lng], {
+        userMarkerRef.current = L.marker([userLat, userLng], {
           icon: userIcon,
           zIndexOffset: 1000,
         }).addTo(map);
       } else {
-        userMarkerRef.current.setLatLng([userLocation.lat, userLocation.lng]);
+        userMarkerRef.current.setLatLng([userLat, userLng]);
       }
     } else if (userMarkerRef.current) {
       userMarkerRef.current.remove();
       userMarkerRef.current = null;
     }
-  }, [shops, selectedShop, userLocation]);
+  }, [shops, selectedShop, userLocation, coordSystem]);
 
   // Pan/zoom to selection only when parent bumps mapPanNonce (fast fly; ShopCard in SHOP-anchor mode skips bump)
   useEffect(() => {
@@ -302,11 +329,12 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
     const map = mapRef.current;
 
     const safeFlyTo = (lat: number, lng: number, z: number) => {
+      const [mapLat, mapLng] = toMapCoords(lat, lng);
       try {
-        map.flyTo([lat, lng], z, { duration: 0.35, easeLinearity: 0.5 });
+        map.flyTo([mapLat, mapLng], z, { duration: 0.35, easeLinearity: 0.5 });
       } catch {
         try {
-          map.setView([lat, lng], z);
+          map.setView([mapLat, mapLng], z);
         } catch {
           /* ignore */
         }
@@ -328,7 +356,8 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
 
       if (canFitRing && userLocation) {
         try {
-          const ring = L.circle([userLocation.lat, userLocation.lng], {
+          const [ringLat, ringLng] = toMapCoords(userLocation.lat, userLocation.lng);
+          const ring = L.circle([ringLat, ringLng], {
             radius: rk * 1000,
           });
           const bounds = ring.getBounds();
@@ -353,7 +382,7 @@ const MapComponentInner: React.FC<MapComponentProps> = ({
     };
 
     requestAnimationFrame(run);
-  }, [selectedShop, mapPanNonce, radiusKm, userLocation]);
+  }, [selectedShop, mapPanNonce, radiusKm, userLocation, coordSystem]);
 
   return (
     <div 
