@@ -88,6 +88,20 @@ _LEGACY_PAGE_MARKERS = (
 )
 
 
+def _maybe_purge_factory_data_once():
+    """One-time ops switch: set PURGE_ALL_SHOPS_ONCE=1 on Render, redeploy, then remove it."""
+    if os.environ.get("PURGE_ALL_SHOPS_ONCE") != "1":
+        return
+    try:
+        from app.repositories.shop_repository import ShopRepository
+
+        deleted = ShopRepository().purge_all_shops()
+        print(f"🧹 PURGE_ALL_SHOPS_ONCE removed {deleted} legacy listing(s) from the database")
+    except Exception as e:
+        db.session.rollback()
+        print(f"⚠️ PURGE_ALL_SHOPS_ONCE failed: {e}")
+
+
 def _migrate_legacy_site_pages():
     """Clear CMS HTML left over from the massage-map era so B2B fallbacks show."""
     try:
@@ -184,6 +198,7 @@ def create_app():
         _ensure_shop_main_product_column()
         _ensure_user_ad_manager_column()
         _migrate_legacy_site_pages()
+        _maybe_purge_factory_data_once()
 
     @app.route('/')
     def home():

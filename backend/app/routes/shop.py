@@ -210,6 +210,32 @@ def bulk_import_excel():
 def list_all():
     return jsonify({"shops": "This is a test endpoint"})
 
+@shop_bp.route('/admin/purge-all', methods=['POST'])
+@shop_bp.route('/shop/admin/purge-all', methods=['POST'])
+def purge_all_shops():
+    """Admin-only: delete every listing (e.g. legacy factory bulk import)."""
+    auth_user = _require_auth_user()
+    if not auth_user or not _is_admin_user(auth_user):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.get_json() or {}
+    token = data.get("token")
+    confirm = (data.get("confirm") or "").strip()
+    admin_delete_token = current_app.config["ADMIN_DELETE_TOKEN"]
+
+    if token != admin_delete_token:
+        return jsonify({"error": "Unauthorized"}), 401
+    if confirm != "PURGE_ALL_SHOPS":
+        return jsonify({"error": 'Missing confirm: send {"confirm":"PURGE_ALL_SHOPS"}'}), 400
+
+    try:
+        deleted = service.purge_all_shops()
+        return jsonify({"success": True, "deleted_count": deleted})
+    except Exception as e:
+        current_app.logger.error(f"purge_all_shops failed: {e}")
+        return jsonify({"error": "Purge failed", "details": str(e)}), 500
+
+
 @shop_bp.route('/del', methods=['POST'])
 @shop_bp.route('/shop/del', methods=['POST'])
 def delete_shop():

@@ -300,57 +300,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
             )}
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 space-y-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-600 uppercase tracking-wider">
-                <Table2 size={14} /> Bulk import (Excel)
-              </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                Upload your industrial-belt sheet as-is when headers include{' '}
-                <span className="font-mono text-slate-700">企业名称, 详细地址, 联系电话, 纬度, 经度</span>
-                (or English <span className="font-mono">name, address, phone, lat, lng</span>). Extra columns such as{' '}
-                统一社会信用代码 / 注册资本 / 企业状态 / 数据来源 are saved into the factory profile (description). Up to
-                500 rows; photos are not imported.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={bulkLoading}
-                  onClick={() => void downloadBulkTemplate()}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:border-rose-400 hover:text-rose-600 disabled:opacity-50"
-                >
-                  <Download className="w-4 h-4" />
-                  Template .xlsx
-                </button>
-                <button
-                  type="button"
-                  disabled={bulkLoading}
-                  onClick={() => excelInputRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-500 text-white text-xs font-bold hover:bg-rose-600 disabled:opacity-50"
-                >
-                  <Table2 className="w-4 h-4" />
-                  Upload filled .xlsx
-                </button>
-                <input
-                  ref={excelInputRef}
-                  type="file"
-                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                  className="hidden"
-                  onChange={(e) => void handleBulkExcelSelected(e)}
-                />
-              </div>
-              {bulkSummary && (
-                <pre
-                  className={`text-[11px] whitespace-pre-wrap font-sans rounded-lg p-3 border ${
-                    bulkImportOk
-                      ? 'text-emerald-900 bg-emerald-50 border-emerald-200'
-                      : 'text-amber-950 bg-amber-50 border-amber-200'
-                  }`}
-                >
-                  {bulkSummary}
-                </pre>
-              )}
-            </div>
-
             {/* Display name */}
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Display name *</label>
