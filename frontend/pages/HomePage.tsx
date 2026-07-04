@@ -18,7 +18,7 @@ import { profilePassesLookingForFilter, type LookingForKey } from '../constants/
 import { getApiBaseUrl } from '../config/api';
 
 const STORAGE_KEY = 'mbti_social_map_v1';
-const LEGACY_STORAGE_KEY = 'china_factory_map_v2';
+const LEGACY_FACTORY_STORAGE_KEYS = ['china_factory_map_v2', 'nz_massage_shops_v1'] as const;
 const SHARE_TOOLTIP_SEEN_KEY = 'mbti_social_share_tip_v1';
 /** Session only: show location FAB hint again on new visit / new tab */
 const LOCATION_FAB_TIP_DISMISSED_KEY = 'mbti_social_loc_tip_session';
@@ -50,7 +50,7 @@ function normalizeShopFromApi(shop: any, apiBase: string): Shop {
 
 function loadShopsFromStorage(apiBase: string): Shop[] {
   if (typeof window === 'undefined') return [];
-  const keys = [STORAGE_KEY, LEGACY_STORAGE_KEY];
+  const keys = [STORAGE_KEY, ...LEGACY_FACTORY_STORAGE_KEYS];
   for (const key of keys) {
     const saved = localStorage.getItem(key);
     if (!saved) continue;
@@ -58,10 +58,9 @@ function loadShopsFromStorage(apiBase: string): Shop[] {
       const parsed = JSON.parse(saved) as unknown;
       if (!Array.isArray(parsed) || parsed.length === 0) continue;
       const shops = parsed.map((s) => normalizeShopFromApi(s, apiBase));
-      if (key === LEGACY_STORAGE_KEY) {
+      if (key !== STORAGE_KEY) {
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(shops));
-          localStorage.removeItem(LEGACY_STORAGE_KEY);
+          localStorage.removeItem(key);
         } catch {
           /* ignore */
         }
@@ -193,6 +192,16 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     drawerHeightRef.current = drawerHeight;
   }, [drawerHeight]);
+
+  useEffect(() => {
+    try {
+      for (const key of LEGACY_FACTORY_STORAGE_KEYS) {
+        localStorage.removeItem(key);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   // 1. 原有的 URL 处理逻辑 (保持不变)
   useEffect(() => {
@@ -1527,21 +1536,6 @@ const HomePage: React.FC = () => {
           onAddShop={handleAddShop}
           onClose={() => setShowCreateAd(false)}
           existingShopNamesLower={existingShopNamesLower}
-          onBulkShopsImported={(newShops) => {
-            setShopsDataSource('server');
-            setShops((prev) => {
-              const seen = new Set(prev.map((s) => s.name.trim().toLowerCase()));
-              const merged = [...prev];
-              for (const s of newShops) {
-                const k = s.name.trim().toLowerCase();
-                if (!seen.has(k)) {
-                  seen.add(k);
-                  merged.push(s);
-                }
-              }
-              return merged;
-            });
-          }}
         />
       )}
       {showLogin && <LoginPanel onLoginSuccess={(payload) => { handleLoginSuccess(payload); setShowLogin(false); }} onClose={() => setShowLogin(false)} />}
