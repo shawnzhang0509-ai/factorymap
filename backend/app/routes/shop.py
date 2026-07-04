@@ -210,6 +210,32 @@ def bulk_import_excel():
 def list_all():
     return jsonify({"shops": "This is a test endpoint"})
 
+@shop_bp.route('/admin/purge-legacy', methods=['POST'])
+@shop_bp.route('/shop/admin/purge-legacy', methods=['POST'])
+def purge_legacy_factory_data():
+    """Token-only trigger for one-time legacy factory cleanup (no admin login required)."""
+    data = request.get_json() or {}
+    token = data.get("token")
+    if token != current_app.config["ADMIN_DELETE_TOKEN"]:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    try:
+        from app.legacy_purge import auto_purge_legacy_factory_import_once
+        from app.demo_seed import seed_demo_profiles_if_empty
+
+        deleted = auto_purge_legacy_factory_import_once()
+        seeded = seed_demo_profiles_if_empty()
+        return jsonify({
+            "success": True,
+            "deleted_count": deleted,
+            "seeded_demo_profiles": seeded,
+            "remaining_count": Shop.query.count(),
+        })
+    except Exception as e:
+        current_app.logger.error(f"purge_legacy_factory_data failed: {e}")
+        return jsonify({"error": "Purge failed", "details": str(e)}), 500
+
+
 @shop_bp.route('/admin/purge-all', methods=['POST'])
 @shop_bp.route('/shop/admin/purge-all', methods=['POST'])
 def purge_all_shops():

@@ -88,6 +88,16 @@ _LEGACY_PAGE_MARKERS = (
 )
 
 
+def _auto_purge_legacy_factory_import_once():
+    try:
+        from app.legacy_purge import auto_purge_legacy_factory_import_once
+
+        auto_purge_legacy_factory_import_once()
+    except Exception as e:
+        db.session.rollback()
+        print(f"⚠️ legacy factory auto-purge skipped: {e}")
+
+
 def _maybe_seed_demo_profiles():
     try:
         from app.demo_seed import seed_demo_profiles_if_empty
@@ -211,6 +221,7 @@ def create_app():
         _ensure_user_ad_manager_column()
         _migrate_legacy_site_pages()
         _maybe_purge_factory_data_once()
+        _auto_purge_legacy_factory_import_once()
         _maybe_seed_demo_profiles()
 
     @app.route('/')
