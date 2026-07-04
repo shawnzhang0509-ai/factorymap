@@ -18,13 +18,13 @@ const ShopDetailPage: React.FC = () => {
 
   const handleShare = async () => {
     const currentUrl = window.location.href;
-    const shopName = shop?.name || 'This factory';
+    const shopName = shop?.name || 'This profile';
 
     if (navigator.share) {
       try {
         await navigator.share({
           title: shopName,
-          text: `View ${shopName} on China Factory Map — verified supplier profile.`,
+          text: `View ${shopName} on MBTI Social Map.`,
           url: currentUrl,
         });
         return; 
@@ -119,8 +119,8 @@ const ShopDetailPage: React.FC = () => {
   if (!shop) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
-        <h2 className="text-xl font-bold text-gray-800 mb-2">Factory not found</h2>
-        <p className="text-gray-500 mb-4">The factory you are looking for does not exist or has been removed.</p>
+        <h2 className="text-xl font-bold text-gray-800 mb-2">Profile not found</h2>
+        <p className="text-gray-500 mb-4">This profile does not exist or has been removed.</p>
         <button onClick={() => navigate('/')} className="mt-4 px-6 py-2 bg-rose-500 text-white rounded-full font-bold text-sm hover:bg-rose-600 transition">Back to Map</button>
       </div>
     );
@@ -137,7 +137,7 @@ const ShopDetailPage: React.FC = () => {
         <button 
           onClick={handleShare} 
           className="p-2 -mr-2 hover:bg-gray-100 rounded-full transition active:scale-95"
-          aria-label="Share this factory"
+          aria-label="Share this profile"
         >
           <Share2 size={20} className="text-gray-500" />
         </button>
@@ -160,13 +160,13 @@ const ShopDetailPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 mb-1">{shop.name}</h1>
           {shop.main_product?.trim() ? (
             <p className="text-sm font-semibold text-slate-600 mb-4">
-              Main product: <span className="text-slate-900">{shop.main_product.trim()}</span>
+              Interests: <span className="text-slate-900">{shop.main_product.trim()}</span>
             </p>
           ) : null}
 
           <div className="flex items-center gap-2 mb-6">
-            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1">
-              Verified supplier listing
+            <span className="text-xs font-bold text-violet-700 bg-violet-50 border border-violet-100 rounded-full px-3 py-1">
+              {shop.badge_text?.trim() || 'MBTI profile'}
             </span>
           </div>
 
@@ -184,7 +184,7 @@ const ShopDetailPage: React.FC = () => {
                 <a href={`tel:${shop.phone}`} className="p-2 bg-white rounded-full shadow-sm text-rose-500 w-fit">
                   <Phone size={20} />
                 </a>
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Call supplier</span>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Contact</span>
                 <p className="text-sm text-gray-700 font-bold">{shop.phone}</p>
               </div>
             )}
@@ -194,7 +194,7 @@ const ShopDetailPage: React.FC = () => {
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-2">
                 <Info size={18} className="text-rose-500" />
-                <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide">Factory profile</h3>
+                <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide">About</h3>
               </div>
               <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-line bg-rose-50/50 p-4 rounded-2xl border border-rose-100">
                 {shop.about_me}

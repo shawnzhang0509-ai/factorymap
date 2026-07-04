@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getTagStyle } from '../constants';
+import { MBTI_TYPES } from '../constants/mbtiTypes';
 
 interface BadgeFilterDropdownProps {
   allTags: string[];
@@ -12,10 +13,10 @@ const MENU_WIDTH = 256;
 const GAP = 8;
 
 const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
-  allTags,
   selectedTags,
   onChange,
 }) => {
+  const allTags = MBTI_TYPES.map((t) => t.toLowerCase());
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [draftTags, setDraftTags] = useState<string[]>([]);
@@ -59,11 +60,10 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
     };
   }, [open]);
 
-  // Empty selection = no badge filter (every shop). Do not say "All badges" — that reads like "every badge type selected".
   const summaryText =
     selectedTags.length === 0
-      ? 'All factories'
-      : `${selectedTags.length} credential${selectedTags.length === 1 ? '' : 's'}`;
+      ? 'All types'
+      : `${selectedTags.length} type${selectedTags.length === 1 ? '' : 's'}`;
 
   const toggleDraftTag = (tag: string) => {
     setDraftTags((prev) =>
@@ -71,11 +71,9 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
     );
   };
 
-  /** Uncheck all in draft — apply with Confirm */
   const clearDraft = () => setDraftTags([]);
 
-  /** Apply “no badge filter” immediately and close (default: all shops visible) */
-  const handleShowAllShops = () => {
+  const handleShowAll = () => {
     onChange([]);
     setOpen(false);
   };
@@ -118,15 +116,15 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
         >
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-100 p-2">
             <span id="badge-filter-title" className="text-xs font-semibold text-gray-600">
-              Credentials & capabilities
+              MBTI types
             </span>
             <div className="flex shrink-0 items-center gap-2 text-xs">
               <button
                 type="button"
-                onClick={handleShowAllShops}
-                className="font-semibold text-gray-800 hover:text-gray-950 underline decoration-rose-400 decoration-2 underline-offset-2"
+                onClick={handleShowAll}
+                className="font-semibold text-gray-800 hover:text-gray-950 underline decoration-violet-400 decoration-2 underline-offset-2"
               >
-                Show all factories
+                Show all
               </button>
               <span className="text-gray-300" aria-hidden>
                 ·
@@ -141,38 +139,34 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
             </div>
           </div>
           <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-            {allTags.length === 0 ? (
-              <p className="px-2 py-2 text-xs text-gray-400">No credential types</p>
-            ) : (
-              allTags.map((tag) => {
-                const checked = draftTags.includes(tag);
-                const style = getTagStyle(tag);
-                return (
-                  <label
-                    key={tag}
-                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-50"
+            {allTags.map((tag) => {
+              const checked = draftTags.includes(tag);
+              const style = getTagStyle(tag);
+              return (
+                <label
+                  key={tag}
+                  className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleDraftTag(tag)}
+                    className="accent-violet-500"
+                  />
+                  <span
+                    className={[
+                      'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-black tracking-wide shadow-sm',
+                      style.bg,
+                    ].join(' ')}
                   >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleDraftTag(tag)}
-                      className="accent-rose-500"
-                    />
-                    <span
-                      className={[
-                        'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-black tracking-wide shadow-sm',
-                        style.bg,
-                      ].join(' ')}
-                    >
-                      <span className="text-sm leading-none">{style.icon}</span>
-                      <span className={checked ? 'font-semibold' : ''}>
-                        {style.text || tag}
-                      </span>
+                    <span className="text-sm leading-none">{style.icon}</span>
+                    <span className={checked ? 'font-semibold' : ''}>
+                      {style.text || tag.toUpperCase()}
                     </span>
-                  </label>
-                );
-              })
-            )}
+                  </span>
+                </label>
+              );
+            })}
           </div>
           <div className="flex shrink-0 gap-2 border-t border-gray-100 bg-gray-50/90 p-2">
             <button
@@ -185,7 +179,7 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
             <button
               type="button"
               onClick={handleConfirm}
-              className="flex-1 rounded-lg bg-rose-600 py-2 text-sm font-semibold text-white shadow-sm hover:bg-rose-700"
+              className="flex-1 rounded-lg bg-violet-600 py-2 text-sm font-semibold text-white shadow-sm hover:bg-violet-700"
             >
               Confirm
             </button>
@@ -203,7 +197,7 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
         onClick={handleTriggerClick}
         className="inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full border border-white/50 bg-white/40 px-2 py-0.5 text-[11px] font-semibold text-gray-800 shadow-sm backdrop-blur-sm hover:bg-white/55 sm:gap-2 sm:px-3 sm:py-1 sm:text-xs"
       >
-        <span className="shrink-0">Credentials</span>
+        <span className="shrink-0">MBTI</span>
         <span className="min-w-0 truncate text-gray-500">{summaryText}</span>
         <span className="shrink-0 text-gray-400">{open ? '▲' : '▼'}</span>
       </button>

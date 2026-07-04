@@ -6,12 +6,11 @@ const AboutPage: React.FC = () => {
   const fallback = (
     <>
       <p className="text-gray-600 mb-4">
-        China Factory Map helps international buyers discover manufacturing suppliers across major industrial belts in
-        China, review credentials, and contact factories quickly.
+        MBTI Social Map helps you discover people nearby on a map, filter by personality type, and connect for
+        friendship, dating, or shared activities.
       </p>
       <p className="text-gray-600 mb-4">
-        We are continuously improving listing quality, verification workflows, and admin tools so sourcing teams can
-        work with clearer factory data.
+        Put your pin on the map, share your MBTI type and interests, and find others who match your vibe.
       </p>
     </>
   );

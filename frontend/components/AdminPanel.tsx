@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { X, Upload, Info, DollarSign, MapPin, Table2, Download } from 'lucide-react';
 import { ShopCreate, Shop } from './types';
-import { CHINA_ECONOMIC_ZONES } from '../constants/filterRegions';
-import { MOQ_TIER_FORM_OPTIONS } from '../constants/moqTiers';
+import { MBTI_TYPES } from '../constants/mbtiTypes';
+import { LOOKING_FOR_OPTIONS } from '../constants/socialTags';
 import { getApiBaseUrl } from '../config/api';
 
 interface AdminPanelProps {
@@ -43,8 +43,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     main_product: '',
   });
 
-  const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState("");
+  const [mbtiType, setMbtiType] = useState<string>('ENFP');
+  const [lookingFor, setLookingFor] = useState<string[]>(['friends']);
 
   const nameKey = (newShop.name || '').trim().toLowerCase();
   const nameDuplicate =
@@ -52,12 +52,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newShop.name || !newShop.address || !newShop.phone || !newShop.lat || !newShop.lng || !newShop.main_product?.trim()) {
-      setError('Please fill in all required fields (Factory name, Location, Phone, Coordinates, Main product).');
+    if (!newShop.name || !newShop.address || !newShop.phone || !newShop.lat || !newShop.lng || !mbtiType) {
+      setError('Please fill in all required fields (Display name, Location, Phone, Coordinates, MBTI type).');
       return;
     }
     if (nameDuplicate) {
-      setError('This factory name is already used. Please choose a different name (same spelling with different spacing/capitalization also counts as duplicate).');
+      setError('This display name is already used. Please choose a different name.');
       return;
     }
 
@@ -74,10 +74,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     formData.append("lat", String(newShop.lat));
     formData.append("lng", String(newShop.lng));
     
-    const tagsString = tags.join(",");
-    formData.append("badge_text", tagsString); 
-    
-    formData.append("new_girls_last_15_days", String(newShop.new_girls_last_15_days || false));
+    formData.append("badge_text", mbtiType);
+    formData.append("additional_price", lookingFor.join(','));
 
     // 🔥 添加新字段到 FormData
     if (newShop.about_me) {
@@ -92,7 +90,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     if (newShop.main_product?.trim()) {
       formData.append('main_product', newShop.main_product.trim());
     }
-    if (newShop.min_spend != null && newShop.min_spend >= 1 && newShop.min_spend <= 4) {
+    if (newShop.min_spend != null && newShop.min_spend >= 16) {
       formData.append('min_spend', String(newShop.min_spend));
     }
 
@@ -113,8 +111,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         setError(
           result.error ||
             (res.status === 409
-              ? 'This factory name is already in use.'
-              : 'Failed to add factory. Please try again.')
+              ? 'This display name is already in use.'
+              : 'Failed to add profile. Please try again.')
         );
         setIsSubmitting(false);
         return;
@@ -138,8 +136,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         min_spend: undefined,
         main_product: '',
       });
-      setTags([]);
-      setTagInput("");
+      setMbtiType('ENFP');
+      setLookingFor(['friends']);
       onClose();
 
     } catch (err) {
@@ -286,7 +284,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     <div className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
       <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col">
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
-          <h2 className="text-xl font-bold text-gray-900">Add factory listing</h2>
+          <h2 className="text-xl font-bold text-gray-900">Add profile</h2>
           <button onClick={onClose} className="p-2 -mr-2 text-gray-400 hover:text-gray-600 transition">
             <X className="w-6 h-6" />
           </button>
@@ -353,21 +351,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               )}
             </div>
 
-            {/* Factory name */}
+            {/* Display name */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Factory name *</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Display name *</label>
               <input
                 required
-                className={`w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all ${
+                className={`w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-violet-500 outline-none transition-all ${
                   nameDuplicate ? 'ring-2 ring-amber-400' : ''
                 }`}
                 value={newShop.name}
                 onChange={e => setNewShop({ ...newShop, name: e.target.value })}
-                placeholder="e.g. Shenzhen Bright Electronics Co., Ltd."
+                placeholder="e.g. Alex, 小雨"
               />
               {nameDuplicate && (
                 <p className="text-[11px] text-amber-700 font-semibold mt-1">
-                  This name matches an existing factory (ignoring spaces and capital letters). Saving will be rejected — pick a unique name.
+                  This name is already taken. Pick a unique display name.
                 </p>
               )}
             </div>
@@ -384,57 +382,43 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               />
             </div>
 
-            {/* Credentials (comma → tags) */}
+            {/* MBTI type */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                Credentials (buyer-facing)
-              </label>
-              <div 
-                className={`
-                  flex flex-wrap items-center gap-2 
-                  w-full px-3 py-2 
-                  bg-gray-50 border-2 
-                  rounded-xl 
-                  transition-all outline-none
-                  ${tagInput ? 'border-rose-500 ring-2 ring-rose-100' : 'border-transparent focus-within:border-rose-500 focus-within:ring-2 focus-within:ring-rose-100'}
-                `}
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">MBTI type *</label>
+              <select
+                required
+                className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-violet-500 outline-none transition-all"
+                value={mbtiType}
+                onChange={(e) => setMbtiType(e.target.value)}
               >
-                {tags.map((tag, idx) => (
-                  <span 
-                    key={idx} 
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-100 text-rose-700 text-xs font-bold animate-in fade-in zoom-in duration-200"
-                  >
-                    {tag}
-                    <button 
-                      type="button" 
-                      onClick={() => setTags(tags.filter(t => t !== tag))}
-                      className="hover:bg-rose-200 rounded-full p-0.5 transition-colors"
-                    >
-                      <X size={12} strokeWidth={3} />
-                    </button>
-                  </span>
+                {MBTI_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
                 ))}
-                <input
-                  type="text"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      const val = tagInput.trim();
-                      if (val && !tags.includes(val)) {
-                        setTags([...tags, val]);
-                        setTagInput("");
-                      }
-                    } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
-                      setTags(tags.slice(0, -1));
-                    }
-                  }}
-                  placeholder={tags.length === 0 ? "Type & Enter (e.g. Industry Leader, ISO 9001)" : ""}
-                  className="flex-1 min-w-[120px] bg-transparent outline-none text-sm text-gray-700 placeholder-gray-400 py-1"
-                />
+              </select>
+            </div>
+
+            {/* Looking for */}
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Looking for</label>
+              <div className="flex flex-wrap gap-2">
+                {LOOKING_FOR_OPTIONS.map((opt) => {
+                  const on = lookingFor.includes(opt.key);
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setLookingFor((prev) =>
+                        on ? prev.filter((k) => k !== opt.key) : [...prev, opt.key]
+                      )}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition ${
+                        on ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-gray-700 border-gray-200'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
               </div>
-              <p className="text-[10px] text-gray-400 mt-1 ml-1">Press Enter to add, Backspace to remove last.</p>
             </div>
 
             {/* Coordinates */}
@@ -474,92 +458,62 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all"
                 value={newShop.phone}
                 onChange={e => setNewShop({ ...newShop, phone: e.target.value })}
-                placeholder="WhatsApp / mobile for buyer inquiries"
+                placeholder="WeChat / mobile for connecting"
               />
             </div>
 
-            {/* Map region (home filter chips) */}
+            {/* City */}
             <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <MapPin size={14} /> Industrial zone
+                <MapPin size={14} /> City
               </label>
-              <select
-                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none text-sm text-gray-800"
+              <input
+                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-violet-500 outline-none text-sm text-gray-800"
                 value={newShop.filter_city || ''}
                 onChange={(e) => setNewShop({ ...newShop, filter_city: e.target.value })}
-              >
-                <option value="">Not set</option>
-                {CHINA_ECONOMIC_ZONES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
+                placeholder="e.g. Shanghai, Beijing"
+              />
             </div>
 
             <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <DollarSign size={14} /> MOQ / trade capacity
+                <DollarSign size={14} /> Age (optional)
               </label>
-              <select
-                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none text-sm text-gray-800"
-                value={
-                  newShop.min_spend != null && newShop.min_spend >= 1 && newShop.min_spend <= 4
-                    ? String(newShop.min_spend)
-                    : '0'
-                }
+              <input
+                type="number"
+                min={16}
+                max={99}
+                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-violet-500 outline-none text-sm text-gray-800"
+                value={newShop.min_spend ?? ''}
                 onChange={(e) => {
                   const v = e.target.value;
-                  setNewShop({ ...newShop, min_spend: v === '0' ? undefined : Number(v) });
+                  setNewShop({ ...newShop, min_spend: v ? Number(v) : undefined });
                 }}
-              >
-                {MOQ_TIER_FORM_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+                placeholder="e.g. 25"
+              />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Main product *</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Interests</label>
               <input
-                required
-                className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all"
+                className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-violet-500 outline-none transition-all"
                 value={newShop.main_product || ''}
                 onChange={(e) => setNewShop({ ...newShop, main_product: e.target.value })}
-                placeholder="e.g. LED drivers, knitwear, CNC machined parts"
+                placeholder="e.g. Coffee, hiking, photography"
               />
             </div>
 
-            {/* Capabilities */}
-            <div className="bg-rose-50/50 p-4 rounded-2xl border border-rose-100">
-              <label className="block text-xs font-bold text-rose-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <Info size={14} /> Factory profile / capabilities
+            <div className="bg-violet-50/50 p-4 rounded-2xl border border-violet-100">
+              <label className="block text-xs font-bold text-violet-600 uppercase tracking-wider mb-2 flex items-center gap-2">
+                <Info size={14} /> About me
               </label>
               <textarea
                 rows={3}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-rose-200 focus:ring-2 focus:ring-rose-500 outline-none transition-all text-sm text-gray-700 resize-none"
+                className="w-full px-3 py-2 rounded-xl bg-white border border-violet-200 focus:ring-2 focus:ring-violet-500 outline-none transition-all text-sm text-gray-700 resize-none"
                 value={newShop.about_me}
                 onChange={e => setNewShop({ ...newShop, about_me: e.target.value })}
-                placeholder="Lines, certifications, export markets, key customers (sanitized)…"
+                placeholder="A short intro — hobbies, vibe, what you are like…"
               />
-              <p className="text-[10px] text-rose-400 mt-1">Shown on the factory detail page.</p>
-            </div>
-
-            {/* Commercial notes */}
-            <div className="bg-green-50/50 p-4 rounded-2xl border border-green-100">
-              <label className="block text-xs font-bold text-green-700 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <DollarSign size={14} /> Pricing / lead time notes
-              </label>
-              <textarea
-                rows={3}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-green-200 focus:ring-2 focus:ring-green-500 outline-none transition-all text-sm text-gray-700 resize-none"
-                value={newShop.additional_price}
-                onChange={e => setNewShop({ ...newShop, additional_price: e.target.value })}
-                placeholder={`FOB Shanghai\nTypical lead time: 25 days`}
-              />
-              <p className="text-[10px] text-green-500 mt-1">Use Enter for new lines.</p>
             </div>
 
             {/* Photos */}
@@ -590,7 +544,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
             className={`w-full bg-rose-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-rose-200 active:scale-95 transition-transform sticky bottom-0
               ${isSubmitting ? 'opacity-70 cursor-not-allowed bg-gray-400 shadow-none' : 'hover:bg-rose-600'}`}
           >
-            {isSubmitting ? 'Saving…' : 'Add factory'}
+            {isSubmitting ? 'Saving…' : 'Add profile'}
           </button>
         </form>
       </div>

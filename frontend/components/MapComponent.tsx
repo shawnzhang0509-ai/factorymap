@@ -4,6 +4,7 @@ import { Shop, UserLocation } from '../types';
 import { getApiBaseUrl } from '../config/api';
 import { attachBasemapLayer, MapCoordSystem } from '../config/mapTiles';
 import { wgs84ToGcj02 } from '../utils/coordTransform';
+import { mbtiTypeFromBadge, MBTI_GROUP_BY_TYPE, MBTI_MARKER_COLORS } from '../constants/mbtiTypes';
 
 // ✅ 1. 接口增加 zoom 属性
 interface MapComponentProps {
@@ -36,7 +37,10 @@ const createShopIcon = (shop: Shop, isSelected: boolean): L.DivIcon => {
   circle.style.border = '2px solid white';
   circle.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
   circle.style.overflow = 'hidden';
-  circle.style.backgroundColor = isSelected ? '#e11d48' : '#f43f5e';
+  const mbtiType = mbtiTypeFromBadge(shop.badge_text);
+  const group = mbtiType ? MBTI_GROUP_BY_TYPE[mbtiType] : null;
+  const palette = group ? MBTI_MARKER_COLORS[group] : { normal: '#f43f5e', selected: '#e11d48' };
+  circle.style.backgroundColor = isSelected ? palette.selected : palette.normal;
   if (isSelected) {
     circle.style.transform = 'scale(1.25)';
     circle.style.transition = 'transform 0.2s ease';
@@ -66,7 +70,7 @@ const createShopIcon = (shop: Shop, isSelected: boolean): L.DivIcon => {
   if (finalImageUrl) {
     const img = document.createElement('img');
     img.src = finalImageUrl;
-    img.alt = shop.name || 'Factory';
+    img.alt = shop.name || 'Profile';
     img.style.width = '100%';
     img.style.height = '100%';
     img.style.objectFit = 'cover';
@@ -78,9 +82,9 @@ const createShopIcon = (shop: Shop, isSelected: boolean): L.DivIcon => {
       }
       if (!circle.querySelector('span')) {
         const span = document.createElement('span');
-        span.textContent = '厂';
+        span.textContent = mbtiType || '✨';
         span.style.color = 'white';
-        span.style.fontSize = '10px';
+        span.style.fontSize = mbtiType ? '7px' : '10px';
         span.style.fontWeight = 'bold';
         span.style.display = 'flex';
         span.style.alignItems = 'center';
@@ -93,9 +97,9 @@ const createShopIcon = (shop: Shop, isSelected: boolean): L.DivIcon => {
   } else {
     if (!circle.querySelector('span')) {
       const span = document.createElement('span');
-      span.textContent = '厂';
+      span.textContent = mbtiType || '✨';
       span.style.color = 'white';
-      span.style.fontSize = '10px';
+      span.style.fontSize = mbtiType ? '7px' : '10px';
       span.style.fontWeight = 'bold';
       span.style.display = 'flex';
       span.style.alignItems = 'center';
@@ -115,7 +119,7 @@ const createShopIcon = (shop: Shop, isSelected: boolean): L.DivIcon => {
     triangle.style.transform = 'translateX(-50%) rotate(45deg)';
     triangle.style.width = '8px';
     triangle.style.height = '8px';
-    triangle.style.backgroundColor = '#e11d48';
+    triangle.style.backgroundColor = isSelected ? palette.selected : palette.normal;
     triangle.style.zIndex = '10';
     iconDiv.appendChild(triangle);
   }

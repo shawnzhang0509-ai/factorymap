@@ -5,9 +5,8 @@ import { MessageCircle, MapPin, Phone, Upload, X, Check, ExternalLink } from 'lu
 import { Shop, ShopEdit } from '../types';
 import { dmsToDecimal } from '../utils/geoUtils';
 import { getTagStyle } from '../constants';
-import { CHINA_ECONOMIC_ZONES } from '../constants/filterRegions';
-import { MOQ_TIER_FORM_OPTIONS, moqTierLabel } from '../constants/moqTiers';
-import { credentialIdsFromBadgeText } from '../constants/factoryCredentials';
+import { MBTI_TYPES, mbtiTypeFromBadge } from '../constants/mbtiTypes';
+import { LOOKING_FOR_OPTIONS, interestsFromField } from '../constants/socialTags';
 import { getApiBaseUrl } from '../config/api';
 
 interface ShopCardProps {
@@ -81,7 +80,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
     const slug = getShopSlug();
     const detailPath = slug ? `/shop/${slug}` : `/shop/${shop.id}`;
     const detailUrl = `${window.location.origin}${detailPath}`;
-    return `Hello ${ownerName}, we found your factory on China Factory Map and would like to discuss sourcing. Profile: ${detailUrl}`;
+    return `Hi ${ownerName}! I found your profile on MBTI Social Map and would like to connect. Profile: ${detailUrl}`;
   };
 
   const setGestureState = (nextState: GestureState) => {
@@ -507,91 +506,78 @@ const ShopCard: React.FC<ShopCardProps> = ({
               />
             </div>
 
-            {/* MAIN PRODUCT */}
+            {/* INTERESTS */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">MAIN PRODUCT</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">INTERESTS</label>
               <input
                 type="text"
                 value={editData.main_product || ''}
                 onChange={(e) => setEditData({ ...editData, main_product: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                placeholder="e.g. Consumer electronics, textiles, machinery"
+                placeholder="e.g. Coffee, hiking, photography"
                 className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
-            {/* ABOUT / CAPABILITIES */}
+            {/* BIO */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">CAPABILITIES & NOTES</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">ABOUT ME</label>
               <textarea
                 value={editData.about_me || ''}
                 onChange={(e) => setEditData({ ...editData, about_me: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                placeholder="Equipment, certifications, production lines, export markets…"
+                placeholder="A short intro about yourself…"
                 className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 rows={3}
               />
             </div>
 
-            {/* PRICING / TERMS */}
+            {/* LOOKING FOR */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">PRICING / LEAD TIME NOTES</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">LOOKING FOR</label>
               <input
                 type="text"
                 value={editData.additional_price || ''}
                 onChange={(e) => setEditData({ ...editData, additional_price: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                placeholder="e.g. FOB terms, typical lead time, tooling fees"
+                placeholder="e.g. friends, dating, activity"
                 className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
-            {/* ECONOMIC ZONE (admin only) */}
+            {/* CITY */}
             {isAdmin && (
               <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">INDUSTRIAL ZONE</label>
-                <select
+                <label className="block text-xs font-bold text-gray-500 mb-1">CITY</label>
+                <input
                   value={editData.filter_city || ''}
                   onChange={(e) => setEditData({ ...editData, filter_city: e.target.value })}
                   onClick={(e) => e.stopPropagation()}
                   className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                >
-                  <option value="">— Not set —</option>
-                  {CHINA_ECONOMIC_ZONES.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="e.g. Shanghai"
+                />
               </div>
             )}
 
             {shop.can_edit && (
               <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">MOQ / TRADE CAPACITY</label>
-                <select
-                  value={
-                    editData.min_spend != null && editData.min_spend >= 1 && editData.min_spend <= 4
-                      ? String(editData.min_spend)
-                      : '0'
-                  }
+                <label className="block text-xs font-bold text-gray-500 mb-1">AGE</label>
+                <input
+                  type="number"
+                  min={16}
+                  max={99}
+                  value={editData.min_spend ?? ''}
                   onChange={(e) => {
                     const v = e.target.value;
                     setEditData({
                       ...editData,
-                      min_spend: v === '0' ? undefined : Number(v),
+                      min_spend: v ? Number(v) : undefined,
                     });
                   }}
                   onClick={(e) => e.stopPropagation()}
                   className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                >
-                  {MOQ_TIER_FORM_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-gray-500 mt-1">Shown on the map card for overseas buyers</p>
+                  placeholder="e.g. 25"
+                />
               </div>
             )}
 
@@ -686,54 +672,20 @@ const ShopCard: React.FC<ShopCardProps> = ({
               </div>
             </div>
 
-            {/* CREDENTIALS (comma-separated English labels) */}
+            {/* MBTI TYPE */}
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">CREDENTIALS</label>
-              <input
-                type="text"
-                value={editData.badge_text || ''}
+              <label className="block text-xs font-bold text-gray-700 mb-1">MBTI TYPE</label>
+              <select
+                value={(editData.badge_text || '').trim().toUpperCase()}
                 onChange={(e) => setEditData({ ...editData, badge_text: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                placeholder="e.g. Industry Leader, ISO 9001 Certified, Export Experience"
-                disabled={!isAdmin}
-                className={`w-full px-3 py-2 text-sm border rounded-lg outline-none ${
-                  isAdmin
-                    ? 'border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white'
-                    : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
-                }`}
-              />
-              {!isAdmin && (
-                <p className="text-[10px] text-amber-600 mt-1">
-                  Credentials are admin-only and cannot be changed by supplier users.
-                </p>
-              )}
-              <p className="text-[10px] text-gray-500 mt-1">
-                Use the buyer-facing phrases from the map filter (comma-separated), e.g. Industry Leader, OEM/ODM
-                Specialist, Trade Assurance.
-              </p>
-
-              {editData.badge_text && editData.badge_text.trim() !== '' && (
-                <div className="mt-3 flex flex-wrap gap-2 p-2 bg-gray-50 rounded-lg border border-gray-100">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider self-center mr-1">Preview:</span>
-                  {editData.badge_text.split(',').map((tag, idx) => {
-                    const t = tag.trim();
-                    if (!t) return null;
-                    const lower = t.toLowerCase();
-                    const config = getTagStyle(lower);
-                    const display = config.text || (t.charAt(0).toUpperCase() + t.slice(1));
-                    
-                    return (
-                      <span 
-                        key={idx} 
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black tracking-wide shadow-md ${config.bg}`}
-                      >
-                        {config.icon && <span className="text-base leading-none shrink-0 filter drop-shadow-sm">{config.icon}</span>}
-                        <span className="whitespace-nowrap">{display}</span>
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
+                className="w-full px-3 py-2 text-sm border rounded-lg outline-none border-gray-300 focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                <option value="">— Select —</option>
+                {MBTI_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -864,26 +816,23 @@ const ShopCard: React.FC<ShopCardProps> = ({
         </div>
       )}
 
-      {/* Credential badges */}
+      {/* MBTI badge */}
       {(() => {
-        const ids = credentialIdsFromBadgeText(shop.badge_text);
-        if (!ids.length) return null;
+        const type = mbtiTypeFromBadge(shop.badge_text);
+        if (!type) return null;
+        const config = getTagStyle(type.toLowerCase());
         return (
         <div className="absolute top-3 left-3 z-40 flex flex-wrap gap-2 max-w-[85%] pointer-events-none">
-          {ids.map((id) => {
-            const config = getTagStyle(id);
-            const displayText = config.text || id;
-
-            return (
-              <span 
-                key={id} 
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black tracking-wide shadow-lg backdrop-blur-sm ${config.bg}`}
-              >
-                {config.icon && <span className="text-lg leading-none shrink-0 filter drop-shadow-md">{config.icon}</span>}
-                <span className="whitespace-nowrap">{displayText}</span>
-              </span>
-            );
-          })}
+          <span
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black tracking-wide shadow-lg backdrop-blur-sm ${config.bg}`}
+          >
+            <span className="whitespace-nowrap">{type}</span>
+          </span>
+          {shop.new_girls_last_15_days ? (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-rose-500 text-white shadow-lg">
+              New
+            </span>
+          ) : null}
         </div>
         );
       })()}
@@ -1004,12 +953,12 @@ const ShopCard: React.FC<ShopCardProps> = ({
         </div>
         {shop.main_product?.trim() ? (
           <p className="text-[10px] font-semibold text-slate-700 sm:text-[11px]">
-            Main product: {shop.main_product.trim()}
+            Interests: {interestsFromField(shop.main_product).join(', ')}
           </p>
         ) : null}
-        {shop.min_spend != null && shop.min_spend >= 1 && shop.min_spend <= 4 && (
+        {shop.min_spend != null && shop.min_spend > 0 && shop.min_spend < 120 && (
           <p className="text-[10px] font-semibold text-gray-600 sm:text-[11px]">
-            {moqTierLabel(shop.min_spend)}
+            Age {shop.min_spend}
           </p>
         )}
         <div className="flex items-start gap-1.5 text-gray-500 text-xs leading-tight min-h-[2rem] overflow-hidden">
@@ -1033,14 +982,14 @@ const ShopCard: React.FC<ShopCardProps> = ({
             className="flex-1 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-semibold py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-colors text-sm"
           >
             <MessageCircle className="w-4 h-4" />
-            <span>Contact Supplier</span>
+            <span>Say Hi</span>
           </button>
 
           <button
             type="button"
             onClick={(e) => handleActionClick('call', e)}
             className="bg-gray-100 hover:bg-gray-200 p-2 rounded-xl text-gray-600 transition-colors shrink-0"
-            aria-label="Call supplier"
+            aria-label="Call"
           >
             <Phone className="w-5 h-5" />
           </button>

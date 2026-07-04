@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import AgeVerificationModal from '../components/AgeVerificationModal';
-import { REGION_FILTER_OPTIONS } from '../constants/filterRegions';
+import { MBTI_FILTER_ROWS } from '../constants/mbtiTypes';
+import { mbtiTypeFromBadge, MBTI_TYPES } from '../constants/mbtiTypes';
 import MapComponent from '../components/MapComponent';
 import ShopCard from '../components/ShopCard';
 import AdminPanel from '../components/AdminPanel';
@@ -12,23 +13,20 @@ import LoginPanel from '../components/LoginPanel';
 import ImagePreviewModal from '../components/ImagePreviewPanel';
 import { Plus, Navigation, Filter, Share2, Search, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
 import BadgeFilterDropdown from '../components/BadgeFilterDropdown';
-import MinSpendFilterDropdown from '../components/MinSpendFilterDropdown';
-import { parseMinSpend } from '../constants/minSpend';
-import { credentialIdsFromBadgeText, FACTORY_CREDENTIAL_IDS } from '../constants/factoryCredentials';
-import type { MoqFilterKey } from '../constants/moqTiers';
-import { shopPassesMoqFilter } from '../constants/moqTiers';
+import LookingForFilterDropdown from '../components/LookingForFilterDropdown';
+import { profilePassesLookingForFilter, type LookingForKey } from '../constants/socialTags';
 import { getApiBaseUrl } from '../config/api';
 
-const STORAGE_KEY = 'china_factory_map_v2';
-const LEGACY_STORAGE_KEY = 'nz_massage_shops_v1';
-const SHARE_TOOLTIP_SEEN_KEY = 'china_factory_share_tip_v1';
+const STORAGE_KEY = 'mbti_social_map_v1';
+const LEGACY_STORAGE_KEY = 'china_factory_map_v2';
+const SHARE_TOOLTIP_SEEN_KEY = 'mbti_social_share_tip_v1';
 /** Session only: show location FAB hint again on new visit / new tab */
-const LOCATION_FAB_TIP_DISMISSED_KEY = 'china_factory_loc_tip_session';
-const TERMS_ACCEPTED_KEY = 'china_factory_map_terms_v1';
+const LOCATION_FAB_TIP_DISMISSED_KEY = 'mbti_social_loc_tip_session';
+const TERMS_ACCEPTED_KEY = 'mbti_social_map_terms_v1';
 const LEGACY_TERMS_KEY = 'age_verified';
 const API_BASE_URL = getApiBaseUrl();
 
-/** Align list payload with UI: picture URLs, MOQ tier, main product */
+/** Align list payload with UI: picture URLs, MBTI type, interests */
 function normalizeShopFromApi(shop: any, apiBase: string): Shop {
   const pictures =
     shop.pictures?.map((pic: any) => ({
@@ -38,14 +36,15 @@ function normalizeShopFromApi(shop: any, apiBase: string): Shop {
   const rawBadge = shop.badge_text;
   const badge_text =
     rawBadge != null && String(rawBadge).trim() !== '' ? String(rawBadge).trim() : '';
-  const minSpend = parseMinSpend(shop.min_spend);
   return {
     ...shop,
     pictures,
     badge_text,
     filter_city: shop.filter_city || '',
-    min_spend: minSpend ?? undefined,
+    min_spend: typeof shop.min_spend === 'number' ? shop.min_spend : undefined,
     main_product: shop.main_product || '',
+    about_me: shop.about_me || '',
+    additional_price: shop.additional_price || '',
   };
 }
 
@@ -91,10 +90,10 @@ function buildNearbyRangeTitle(
 ): string {
   const xx = radiusKm;
   if (centerType === 'USER') {
-    return `Factories near you within ${xx}km`;
+    return `People near you within ${xx}km`;
   }
-  const name = (centerName || 'this supplier').trim();
-  return `Factories surrounding ${name} within ${xx}km`;
+  const name = (centerName || 'this person').trim();
+  return `People near ${name} within ${xx}km`;
 }
 
 const HomePage: React.FC = () => {
@@ -171,10 +170,10 @@ const HomePage: React.FC = () => {
   const [previewIndex, setPreviewIndex] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  /** Map region filter (OR); empty = all. "All China" in selection disables regional restriction. */
-  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
-  /** MOQ / trade capacity filter */
-  const [moqFilter, setMoqFilter] = useState<MoqFilterKey | null>(null);
+  /** Quick MBTI type chips above map */
+  const [selectedMbtiQuick, setSelectedMbtiQuick] = useState<string[]>([]);
+  /** Looking-for goal filter */
+  const [lookingForFilter, setLookingForFilter] = useState<LookingForKey | null>(null);
   const [searchPanelOpen, setSearchPanelOpen] = useState(false);
   const [searchDraft, setSearchDraft] = useState('');
   const [appliedSearchKeyword, setAppliedSearchKeyword] = useState('');
@@ -290,9 +289,12 @@ const HomePage: React.FC = () => {
     window.location.href = 'https://www.google.com';
   };
 
-  const getShopTags = (shop: Shop): string[] => credentialIdsFromBadgeText(shop.badge_text);
+  const getShopMbtiTag = (shop: Shop): string | null => {
+    const type = mbtiTypeFromBadge(shop.badge_text);
+    return type ? type.toLowerCase() : null;
+  };
 
-  const allTags = FACTORY_CREDENTIAL_IDS;
+  const allTags = MBTI_TYPES.map((t) => t.toLowerCase());
 
   const existingShopNamesLower = useMemo(
     () => shops.map((s) => (s.name || '').trim().toLowerCase()).filter(Boolean),
@@ -324,31 +326,30 @@ const HomePage: React.FC = () => {
     // 2. 执行标签过滤（多选：匹配任意一个）
     if (selectedTags.length > 0) {
       const targetTags = new Set(selectedTags);
-      result = result.filter((shop) =>
-        getShopTags(shop).some((tag) => targetTags.has(tag))
-      );
-    }
-
-    if (selectedRegions.length > 0 && !selectedRegions.includes('All China')) {
-      const regionSet = new Set(selectedRegions);
       result = result.filter((shop) => {
-        const fc = (shop as Shop & { filter_city?: string }).filter_city?.trim();
-        return fc && regionSet.has(fc);
+        const tag = getShopMbtiTag(shop);
+        return tag != null && targetTags.has(tag);
       });
     }
 
-    if (moqFilter != null) {
+    if (selectedMbtiQuick.length > 0 && !selectedMbtiQuick.includes('All')) {
+      const typeSet = new Set(selectedMbtiQuick.map((t) => t.toUpperCase()));
+      result = result.filter((shop) => {
+        const type = mbtiTypeFromBadge(shop.badge_text);
+        return type != null && typeSet.has(type);
+      });
+    }
+
+    if (lookingForFilter != null) {
       result = result.filter((shop) =>
-        shopPassesMoqFilter((shop as Shop & { min_spend?: number }).min_spend, moqFilter)
+        profilePassesLookingForFilter(shop.additional_price, lookingForFilter)
       );
     }
 
-    // 3. ✅ 综合排序 (credentials > distance)
+    // 3. Sort: new members first, then by distance
     const getPriority = (shop: Shop) => {
-      const tags = getShopTags(shop);
-      if (tags.includes('industry-leader')) return 3;
-      if (tags.includes('trade-assurance')) return 2;
-      if (tags.includes('export-experience')) return 1;
+      if (shop.new_girls_last_15_days) return 2;
+      if (getShopMbtiTag(shop)) return 1;
       return 0;
     };
 
@@ -391,7 +392,7 @@ const HomePage: React.FC = () => {
     }
 
     return result;
-  }, [shops, useNearbyFilter, userLocation, radiusKm, selectedTags, selectedRegions, moqFilter, selectedShop]);
+  }, [shops, useNearbyFilter, userLocation, radiusKm, selectedTags, selectedMbtiQuick, lookingForFilter, selectedShop]);
 
   // Scrolling Logic
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -750,7 +751,7 @@ const HomePage: React.FC = () => {
       } else {
         const cached = loadShopsFromStorage(API_BASE_URL);
         if (cached.length > 0) {
-          console.warn('API returned no factories — keeping cached listings');
+          console.warn('API returned no profiles — keeping cached listings');
           setShops(cached);
           setShopsLoadStatus('ready');
           setShopsDataSource('cache-stale');
@@ -780,23 +781,23 @@ const HomePage: React.FC = () => {
 
   const emptyListMessage = useMemo(() => {
     if (shops.length === 0) {
-      if (shopsLoadStatus === 'loading') return 'Loading factories…';
+      if (shopsLoadStatus === 'loading') return 'Loading profiles…';
       if (shopsLoadStatus === 'error') {
         return 'Cannot reach the server. Check your network, or wait for the backend to wake up, then tap Retry below.';
       }
       if (shopsLoadStatus === 'empty') {
-        return 'No factories in the database yet. An admin can upload an Excel file from the + button.';
+        return 'No profiles yet. Sign in and tap + to create your map pin.';
       }
     }
     if (useNearbyFilter && userLocation) {
-      return `No factories within ${radiusKm}km of your location. Tap the green filter button (top right) to show all of China.`;
+      return `No one within ${radiusKm}km of your location. Tap the green filter button to show everyone.`;
     }
-    if (selectedTags.length > 0) return 'No factories match the selected credentials.';
-    if (selectedRegions.length > 0 && !selectedRegions.includes('All China')) {
-      return 'No factories in the selected regions.';
+    if (selectedTags.length > 0) return 'No profiles match the selected MBTI types.';
+    if (selectedMbtiQuick.length > 0 && !selectedMbtiQuick.includes('All')) {
+      return 'No profiles match the selected MBTI types.';
     }
-    if (moqFilter != null) return 'No factories match the MOQ filter.';
-    return 'No factories match the current filters.';
+    if (lookingForFilter != null) return 'No profiles match this goal filter.';
+    return 'No profiles match the current filters.';
   }, [
     shops.length,
     shopsLoadStatus,
@@ -804,8 +805,8 @@ const HomePage: React.FC = () => {
     userLocation,
     radiusKm,
     selectedTags.length,
-    selectedRegions,
-    moqFilter,
+    selectedMbtiQuick,
+    lookingForFilter,
   ]);
 
   const handleSearch = async (keyword: string) => {
@@ -863,12 +864,12 @@ const HomePage: React.FC = () => {
     return () => document.removeEventListener('pointerdown', onDoc);
   }, [searchPanelOpen, appliedSearchKeyword]);
 
-  const toggleRegion = (r: string) => {
-    setSelectedRegions((prev) => {
-      if (r === 'All China') {
-        return prev.includes('All China') ? [] : ['All China'];
+  const toggleMbtiQuick = (r: string) => {
+    setSelectedMbtiQuick((prev) => {
+      if (r === 'All') {
+        return prev.includes('All') ? [] : ['All'];
       }
-      const withoutAll = prev.filter((x) => x !== 'All China');
+      const withoutAll = prev.filter((x) => x !== 'All');
       if (withoutAll.includes(r)) return withoutAll.filter((x) => x !== r);
       return [...withoutAll, r];
     });
@@ -1007,7 +1008,7 @@ const HomePage: React.FC = () => {
 
   const handleAddShop = (newShop: Shop) => {
     if (shops.some(s => s.name.trim().toLowerCase() === newShop.name.trim().toLowerCase())) {
-      alert(`Factory "${newShop.name}" already exists`);
+      alert(`Profile "${newShop.name}" already exists`);
       return;
     }
     setShops([...shops, newShop]); setShowCreateAd(false);
@@ -1045,7 +1046,7 @@ const HomePage: React.FC = () => {
       return;
     }
     if (!canManageAllAds) {
-      alert('Only admin or ad manager can add factory listings. Please contact an administrator.');
+      alert('Only moderators can add profiles. Please contact an administrator.');
       return;
     }
     setShowCreateAd(true);
@@ -1066,15 +1067,15 @@ const HomePage: React.FC = () => {
       {/* Region chips: no panel fill — only glass pills; map visible behind */}
       <div className="absolute top-0 left-0 right-[72px] sm:right-0 z-[996] pointer-events-none bg-transparent">
         <div className="max-w-7xl mx-auto px-0.5 sm:px-3 pt-[max(2px,env(safe-area-inset-top,0px))] pb-0 pointer-events-auto bg-transparent">
-          {[REGION_FILTER_OPTIONS.slice(0, 3), REGION_FILTER_OPTIONS.slice(3)].map((row, rowIdx) => (
+          {MBTI_FILTER_ROWS.map((row, rowIdx) => (
             <div key={rowIdx} className="flex justify-center gap-0 sm:gap-1.5 mb-px last:mb-0">
               {row.map((r) => {
-                const on = selectedRegions.includes(r);
+                const on = selectedMbtiQuick.includes(r);
                 return (
                   <button
                     key={r}
                     type="button"
-                    onClick={() => toggleRegion(r)}
+                    onClick={() => toggleMbtiQuick(r)}
                     className={`min-w-0 flex-1 max-w-[25%] sm:max-w-none sm:flex-initial rounded-md sm:rounded-full px-0.5 py-0.5 sm:px-2.5 sm:py-1 text-[11px] leading-snug sm:text-sm sm:leading-normal font-bold border transition text-center backdrop-blur-sm ${
                       on
                         ? 'bg-rose-600/90 text-white border-rose-500/85 shadow-sm'
@@ -1102,7 +1103,7 @@ const HomePage: React.FC = () => {
             />
           </div>
           <div className="shrink-0 flex items-center justify-end">
-            <MinSpendFilterDropdown value={moqFilter} onChange={setMoqFilter} />
+            <LookingForFilterDropdown value={lookingForFilter} onChange={setLookingForFilter} />
           </div>
         </div>
       </div>
@@ -1110,7 +1111,7 @@ const HomePage: React.FC = () => {
       {/*
         Map must fill this panel (absolute inset-0), not sit below padding-top —
         otherwise the padded strip shows the page background (looks like a grey bar).
-        Region / credentials / MOQ rows float above the map with higher z-index.
+        MBTI / goal filter rows float above the map with higher z-index.
       */}
       <div className="flex-1 relative overflow-hidden min-h-0 pt-[calc(env(safe-area-inset-top,0px)+5.45rem)]">
         <div className="absolute inset-0 z-0">
@@ -1132,7 +1133,7 @@ const HomePage: React.FC = () => {
               <p className="font-semibold">Showing cached data on this device only</p>
               <p className="mt-1 text-xs opacity-90">
                 {shopsDataSource === 'cache-stale'
-                  ? 'The server returned 0 factories, but this browser still has an old local copy. Other phones will not see these listings until import succeeds on the server.'
+                  ? 'The server returned 0 profiles, but this browser still has an old local copy.'
                   : 'Cannot reach the server right now. Other devices will not see this data.'}
               </p>
               <button
@@ -1149,7 +1150,7 @@ const HomePage: React.FC = () => {
         {shops.length === 0 && shopsLoadStatus === 'error' && (
           <div className="absolute left-3 right-3 top-[calc(env(safe-area-inset-top,0px)+6.5rem)] z-[1002] pointer-events-auto">
             <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-950 shadow-lg">
-              <p className="font-semibold">Could not load factory data</p>
+              <p className="font-semibold">Could not load profile data</p>
               <p className="mt-1 text-xs opacity-90">
                 Your phone may not have cached data like your computer. Check network or tap Retry.
               </p>
@@ -1180,7 +1181,7 @@ const HomePage: React.FC = () => {
               type="button"
               onClick={handleSearchFabClick}
               className={`p-3 rounded-full shadow-lg ${searchPanelOpen ? 'bg-rose-600 text-white' : 'bg-white text-gray-800'}`}
-              title={searchPanelOpen ? 'Search (confirm)' : 'Search factories'}
+              title={searchPanelOpen ? 'Search (confirm)' : 'Search people'}
               aria-expanded={searchPanelOpen}
               aria-label={searchPanelOpen ? 'Confirm search' : 'Open search'}
             >
@@ -1195,7 +1196,7 @@ const HomePage: React.FC = () => {
                 className="absolute right-0 top-[calc(100%+8px)] w-[min(calc(100vw-5rem),18rem)] rounded-2xl border border-gray-200 bg-white p-3 shadow-2xl z-[10002]"
                 onClick={(e) => e.stopPropagation()}
               >
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Factory name</label>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Name</label>
                 <input
                   type="text"
                   value={searchDraft}
@@ -1226,10 +1227,10 @@ const HomePage: React.FC = () => {
                     aria-hidden
                   />
                   <p className="text-sm font-bold text-sky-700 leading-tight pr-1">
-                    Find verified factories in industrial zones
+                    Find people nearby on the map
                   </p>
                   <p className="text-[11px] text-gray-600 leading-snug mt-1 pr-1">
-                    Tap the blue arrow to use your location; we will highlight suppliers around you on the map.
+                    Tap the blue arrow to use your location; we will highlight people around you.
                   </p>
                   <p className="text-[10px] text-sky-500 font-semibold mt-1.5 pr-1">Tap here to close</p>
                 </div>
@@ -1249,7 +1250,7 @@ const HomePage: React.FC = () => {
             type="button"
             onClick={handleCreateAdClick}
             className="p-3 bg-white text-rose-500 rounded-full shadow-lg"
-            title={!isLoggedIn ? 'Login to manage listings' : (canManageAllAds ? 'Add factory listing' : 'Admin / ad manager only')}
+            title={!isLoggedIn ? 'Login to manage profile' : (canManageAllAds ? 'Add profile' : 'Moderator only')}
           >
             <Plus className="w-6 h-6" />
           </button>
@@ -1266,9 +1267,9 @@ const HomePage: React.FC = () => {
                     className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-r border-t border-rose-100/80 rotate-45"
                     aria-hidden
                   />
-                  <p className="text-sm font-bold text-rose-600 leading-tight pr-1">Share directory</p>
+                  <p className="text-sm font-bold text-violet-600 leading-tight pr-1">Share the map</p>
                   <p className="text-[11px] text-gray-600 leading-snug mt-1 pr-1">
-                    Know a buyer who needs this supplier? Share this factory!
+                    Invite friends to discover MBTI matches nearby!
                   </p>
                 </div>
               </div>
@@ -1472,7 +1473,7 @@ const HomePage: React.FC = () => {
                       type="button"
                       onClick={toggleDrawer}
                       className="min-h-12 min-w-12 w-12 h-12 rounded-full flex items-center justify-center text-white bg-slate-900 hover:bg-slate-800 active:scale-95 shadow-[0_4px_20px_rgba(0,0,0,0.45)] ring-[3px] ring-white/90 border-2 border-white/50 motion-reduce:shadow-lg"
-                      aria-label="Collapse factory list"
+                      aria-label="Collapse profile list"
                     >
                       <ChevronDown size={26} strokeWidth={3} />
                     </button>
@@ -1495,7 +1496,7 @@ const HomePage: React.FC = () => {
                   <div className="flex items-center gap-2 text-white w-full min-w-0">
                     <MapPin size={16} className="flex-shrink-0 drop-shadow" />
                     <span className="font-bold text-[11px] sm:text-xs leading-tight drop-shadow">
-                      Select a factory on the map
+                      Select someone on the map
                     </span>
                   </div>
                 )}
@@ -1510,7 +1511,7 @@ const HomePage: React.FC = () => {
                       toggleDrawer();
                     }}
                     className="min-h-12 min-w-12 w-12 h-12 rounded-full flex items-center justify-center text-white bg-gradient-to-br from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 active:scale-95 shadow-[0_4px_22px_rgba(225,29,72,0.55)] ring-[3px] ring-white/95 border-2 border-white/60 animate-pulse motion-reduce:animate-none"
-                    aria-label="Expand factory list"
+                    aria-label="Expand profile list"
                   >
                     <ChevronUp size={28} strokeWidth={3} />
                   </button>

@@ -187,6 +187,6 @@ def create_app():
 
     @app.route('/')
     def home():
-        return "<h1>China Factory Map API</h1><p>Flask backend is running.</p>"
+        return "<h1>MBTI Social Map API</h1><p>Flask backend is running.</p>"
         
     return app
