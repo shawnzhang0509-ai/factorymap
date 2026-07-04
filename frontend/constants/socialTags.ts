@@ -6,12 +6,14 @@
  * - `min_spend` → age (integer)
  */
 
+import { LOOKING_FOR_ZH } from './i18n';
+
 export const LOOKING_FOR_OPTIONS = [
-  { key: 'friends', label: 'New friends', subtitle: 'Hang out, chat, explore the city' },
-  { key: 'dating', label: 'Dating', subtitle: 'Romantic connections' },
-  { key: 'activity', label: 'Activity buddies', subtitle: 'Sports, hobbies, events' },
-  { key: 'networking', label: 'Networking', subtitle: 'Career, projects, co-founders' },
-] as const;
+  { key: 'friends' as const, label: LOOKING_FOR_ZH.friends.label, subtitle: LOOKING_FOR_ZH.friends.subtitle },
+  { key: 'dating' as const, label: LOOKING_FOR_ZH.dating.label, subtitle: LOOKING_FOR_ZH.dating.subtitle },
+  { key: 'activity' as const, label: LOOKING_FOR_ZH.activity.label, subtitle: LOOKING_FOR_ZH.activity.subtitle },
+  { key: 'networking' as const, label: LOOKING_FOR_ZH.networking.label, subtitle: LOOKING_FOR_ZH.networking.subtitle },
+];
 
 export type LookingForKey = (typeof LOOKING_FOR_OPTIONS)[number]['key'];
 
@@ -31,8 +33,8 @@ export function profilePassesLookingForFilter(
 }
 
 export const INTEREST_SUGGESTIONS = [
-  'Coffee', 'Hiking', 'Photography', 'Gaming', 'Music', 'Reading',
-  'Travel', 'Fitness', 'Food', 'Movies', 'Art', 'Tech',
+  '咖啡', '徒步', '摄影', '游戏', '音乐', '阅读',
+  '旅行', '健身', '美食', '电影', '艺术', '科技',
 ] as const;
 
 export function interestsFromField(value: string | null | undefined): string[] {

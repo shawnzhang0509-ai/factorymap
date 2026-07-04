@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getTagStyle } from '../constants';
 import { MBTI_TYPES } from '../constants/mbtiTypes';
+import { UI } from '../constants/i18n';
 
 interface BadgeFilterDropdownProps {
   allTags: string[];
@@ -62,8 +63,8 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
 
   const summaryText =
     selectedTags.length === 0
-      ? 'All types'
-      : `${selectedTags.length} type${selectedTags.length === 1 ? '' : 's'}`;
+      ? UI.allTypes
+      : UI.typeCount(selectedTags.length);
 
   const toggleDraftTag = (tag: string) => {
     setDraftTags((prev) =>
@@ -116,7 +117,7 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
         >
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-100 p-2">
             <span id="badge-filter-title" className="text-xs font-semibold text-gray-600">
-              MBTI types
+              {UI.mbtiType}
             </span>
             <div className="flex shrink-0 items-center gap-2 text-xs">
               <button
@@ -124,7 +125,7 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
                 onClick={handleShowAll}
                 className="font-semibold text-gray-800 hover:text-gray-950 underline decoration-violet-400 decoration-2 underline-offset-2"
               >
-                Show all
+                {UI.showAll}
               </button>
               <span className="text-gray-300" aria-hidden>
                 ·
@@ -134,7 +135,7 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
                 onClick={clearDraft}
                 className="text-blue-600 hover:text-blue-800"
               >
-                Clear picks
+                {UI.clearPicks}
               </button>
             </div>
           </div>
@@ -174,14 +175,14 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
               onClick={handleCancel}
               className="flex-1 rounded-lg border border-gray-300 bg-white py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
             >
-              Cancel
+              {UI.cancel}
             </button>
             <button
               type="button"
               onClick={handleConfirm}
               className="flex-1 rounded-lg bg-violet-600 py-2 text-sm font-semibold text-white shadow-sm hover:bg-violet-700"
             >
-              Confirm
+              {UI.confirm}
             </button>
           </div>
         </div>

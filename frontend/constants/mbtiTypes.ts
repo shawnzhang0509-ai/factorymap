@@ -1,5 +1,7 @@
 /** 16 MBTI personality types — stored in backend `badge_text` (primary type, uppercase). */
 
+import { MBTI_GROUP_ZH, UI } from './i18n';
+
 export const MBTI_TYPES = [
   'INTJ', 'INTP', 'ENTJ', 'ENTP',
   'INFJ', 'INFP', 'ENFJ', 'ENFP',
@@ -12,10 +14,10 @@ export type MbtiType = (typeof MBTI_TYPES)[number];
 export type MbtiGroup = 'analysts' | 'diplomats' | 'sentinels' | 'explorers';
 
 export const MBTI_GROUP_LABELS: Record<MbtiGroup, string> = {
-  analysts: 'Analysts',
-  diplomats: 'Diplomats',
-  sentinels: 'Sentinels',
-  explorers: 'Explorers',
+  analysts: MBTI_GROUP_ZH.analysts,
+  diplomats: MBTI_GROUP_ZH.diplomats,
+  sentinels: MBTI_GROUP_ZH.sentinels,
+  explorers: MBTI_GROUP_ZH.explorers,
 };
 
 export const MBTI_GROUP_BY_TYPE: Record<MbtiType, MbtiGroup> = {
@@ -27,11 +29,13 @@ export const MBTI_GROUP_BY_TYPE: Record<MbtiType, MbtiGroup> = {
 
 /** Quick-filter rows shown above the map (first chip = show all). */
 export const MBTI_FILTER_ROWS: readonly (readonly string[])[] = [
-  ['All', 'INTJ', 'INTP', 'ENTJ', 'ENTP'],
+  [UI.all, 'INTJ', 'INTP', 'ENTJ', 'ENTP'],
   ['INFJ', 'INFP', 'ENFJ', 'ENFP'],
   ['ISTJ', 'ISFJ', 'ESTJ', 'ESFJ'],
   ['ISTP', 'ISFP', 'ESTP', 'ESFP'],
 ] as const;
+
+export const MBTI_FILTER_ALL = UI.all;
 
 export const MBTI_MARKER_COLORS: Record<MbtiGroup, { normal: string; selected: string }> = {
   analysts: { normal: '#7c3aed', selected: '#5b21b6' },

@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import 'leaflet/dist/leaflet.css';
+import './components/index.css';
 import App from './App';
 
 // 👇 1. 新增：导入 Vercel Analytics

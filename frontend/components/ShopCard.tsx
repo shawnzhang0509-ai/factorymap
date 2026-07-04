@@ -8,6 +8,7 @@ import { getTagStyle } from '../constants';
 import { MBTI_TYPES, mbtiTypeFromBadge } from '../constants/mbtiTypes';
 import { LOOKING_FOR_OPTIONS, interestsFromField } from '../constants/socialTags';
 import { getApiBaseUrl } from '../config/api';
+import { UI } from '../constants/i18n';
 
 interface ShopCardProps {
   shop: Shop;
@@ -245,7 +246,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
     const phone = shop.phone || '';
     if (!phone) {
-        alert('No phone number available');
+        alert(UI.noPhone);
         return;
     }
 
@@ -450,7 +451,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
           }}
         >
           <div className="flex items-center justify-between p-4 border-b bg-gray-50 rounded-t-2xl">
-            <h3 className="font-bold text-lg text-gray-800">Edit Shop</h3>
+            <h3 className="font-bold text-lg text-gray-800">{UI.editProfile}</h3>
             <button 
               onClick={(e) => {
                 runGuardedAction(e, closeEditor);
@@ -803,7 +804,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (!deleting && window.confirm(`Delete "${shop.name}"?`)) onDelete(shop);
+                if (!deleting && window.confirm(`确定删除「${shop.name}」？`)) onDelete(shop);
               }}
               disabled={deleting}
               className={`w-7 h-7 rounded-full flex items-center justify-center shadow-md text-sm transition-colors ${
@@ -830,7 +831,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
           </span>
           {shop.new_girls_last_15_days ? (
             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-rose-500 text-white shadow-lg">
-              New
+              {UI.newMember}
             </span>
           ) : null}
         </div>
@@ -953,12 +954,12 @@ const ShopCard: React.FC<ShopCardProps> = ({
         </div>
         {shop.main_product?.trim() ? (
           <p className="text-[10px] font-semibold text-slate-700 sm:text-[11px]">
-            Interests: {interestsFromField(shop.main_product).join(', ')}
+            {UI.interests}：{interestsFromField(shop.main_product).join('、')}
           </p>
         ) : null}
         {shop.min_spend != null && shop.min_spend > 0 && shop.min_spend < 120 && (
           <p className="text-[10px] font-semibold text-gray-600 sm:text-[11px]">
-            Age {shop.min_spend}
+            {shop.min_spend}{UI.age}
           </p>
         )}
         <div className="flex items-start gap-1.5 text-gray-500 text-xs leading-tight min-h-[2rem] overflow-hidden">
@@ -974,7 +975,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
             className="flex-1 border border-rose-500 text-rose-600 hover:bg-rose-50 font-semibold py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-colors text-sm"
           >
             <ExternalLink className="w-4 h-4" />
-            <span>View Profile</span>
+            <span>{UI.viewProfile}</span>
           </button>
           <button
             type="button"
@@ -982,7 +983,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
             className="flex-1 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-semibold py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-colors text-sm"
           >
             <MessageCircle className="w-4 h-4" />
-            <span>Say Hi</span>
+            <span>{UI.sayHi}</span>
           </button>
 
           <button
