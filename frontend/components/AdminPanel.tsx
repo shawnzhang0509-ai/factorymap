@@ -4,6 +4,7 @@ import { ShopCreate, Shop } from './types';
 import { MBTI_TYPES } from '../constants/mbtiTypes';
 import { LOOKING_FOR_OPTIONS } from '../constants/socialTags';
 import { getApiBaseUrl } from '../config/api';
+import { UI } from '../constants/i18n';
 
 interface AdminPanelProps {
   onAddShop: (shop: Shop) => void;
@@ -46,11 +47,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newShop.name || !newShop.address || !newShop.phone || !newShop.lat || !newShop.lng || !mbtiType) {
-      setError('Please fill in all required fields (Display name, Location, Phone, Coordinates, MBTI type).');
+      setError(UI.requiredFields);
       return;
     }
     if (nameDuplicate) {
-      setError('This display name is already used. Please choose a different name.');
+      setError(UI.nameTaken);
       return;
     }
 
@@ -100,8 +101,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         setError(
           result.error ||
             (res.status === 409
-              ? 'This display name is already in use.'
-              : 'Failed to add profile. Please try again.')
+              ? UI.nameTaken
+              : UI.addFailed)
         );
         setIsSubmitting(false);
         return;
@@ -128,7 +129,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       setLookingFor(['friends']);
       onClose();
     } catch (err) {
-      setError('Network error. Please check your connection.');
+      setError(UI.networkError);
       console.error(err);
     } finally {
       setIsSubmitting(false);
@@ -146,7 +147,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     <div className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
       <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col">
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
-          <h2 className="text-xl font-bold text-gray-900">Add profile</h2>
+          <h2 className="text-xl font-bold text-gray-900">{UI.addProfile}</h2>
           <button onClick={onClose} className="p-2 -mr-2 text-gray-400 hover:text-gray-600 transition">
             <X className="w-6 h-6" />
           </button>
@@ -161,7 +162,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
             )}
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Display name *</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{UI.displayName} *</label>
               <input
                 required
                 className={`w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-violet-500 outline-none transition-all ${
@@ -173,13 +174,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               />
               {nameDuplicate && (
                 <p className="text-[11px] text-amber-700 font-semibold mt-1">
-                  This name is already taken. Pick a unique display name.
+                  {UI.nameDuplicateHint}
                 </p>
               )}
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Location (city, province) *</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{UI.location} *</label>
               <input
                 required
                 className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all"
@@ -190,7 +191,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">MBTI type *</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{UI.mbtiType} *</label>
               <select
                 required
                 className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-violet-500 outline-none transition-all"
@@ -204,7 +205,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Looking for</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{UI.lookingFor}</label>
               <div className="flex flex-wrap gap-2">
                 {LOOKING_FOR_OPTIONS.map((opt) => {
                   const on = lookingFor.includes(opt.key);
@@ -230,7 +231,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                Coordinates (paste from Google Maps) *
+                {UI.coordinates} *
               </label>
               <input
                 type="text"
@@ -250,13 +251,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               />
               {newShop.lat && newShop.lng && (
                 <p className="text-xs text-green-600 font-bold mt-1 flex items-center gap-1">
-                  ✓ Parsed: {newShop.lat.toFixed(6)}, {newShop.lng.toFixed(6)}
+                  {UI.parsedCoords(newShop.lat, newShop.lng)}
                 </p>
               )}
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Phone number *</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{UI.phone} *</label>
               <input
                 required
                 type="tel"
@@ -269,7 +270,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <MapPin size={14} /> City
+                <MapPin size={14} /> {UI.city}
               </label>
               <input
                 className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-violet-500 outline-none text-sm text-gray-800"
@@ -281,7 +282,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <DollarSign size={14} /> Age (optional)
+                <DollarSign size={14} /> {UI.age}{UI.optional}
               </label>
               <input
                 type="number"
@@ -298,7 +299,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Interests</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{UI.interests}</label>
               <input
                 className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-violet-500 outline-none transition-all"
                 value={newShop.main_product || ''}
@@ -309,7 +310,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <div className="bg-violet-50/50 p-4 rounded-2xl border border-violet-100">
               <label className="block text-xs font-bold text-violet-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <Info size={14} /> About me
+                <Info size={14} /> {UI.aboutMe}
               </label>
               <textarea
                 rows={3}
@@ -321,7 +322,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Photos</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{UI.photos}</label>
               <div className="flex gap-2 flex-wrap mb-2">
                 {(newShop.pictures as File[] | undefined)?.map((file, i) => (
                   <div key={i} className="relative group">
@@ -335,7 +336,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
               <label className="flex items-center justify-center gap-2 w-full p-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 hover:text-rose-500 hover:border-rose-500 hover:bg-rose-50 transition-all cursor-pointer">
                 <Upload className="w-5 h-5" />
-                <span className="text-sm font-medium">Upload images</span>
+                <span className="text-sm font-medium">{UI.uploadImages}</span>
                 <input type="file" className="hidden" accept="image/*" multiple onChange={handleImageUpload} />
               </label>
             </div>
@@ -347,7 +348,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
             className={`w-full bg-violet-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-violet-200 active:scale-95 transition-transform sticky bottom-0
               ${isSubmitting ? 'opacity-70 cursor-not-allowed bg-gray-400 shadow-none' : 'hover:bg-violet-700'}`}
           >
-            {isSubmitting ? 'Saving…' : 'Add profile'}
+            {isSubmitting ? UI.saving : UI.addProfile}
           </button>
         </form>
       </div>

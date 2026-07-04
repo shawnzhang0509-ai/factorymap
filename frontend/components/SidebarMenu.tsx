@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { UI } from '../constants/i18n';
 
 type SidebarMenuProps = {
   isOpen: boolean;
@@ -46,36 +47,36 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({ isOpen, onClose, onAuthChange
           <ul>
             <li className="mb-2">
               <Link to="/" onClick={onClose} className="block text-lg font-medium text-gray-800 hover:text-gray-600">
-                Home
+                {UI.home}
               </Link>
             </li>
             <li className="mb-2">
               <Link to="/my-ads" onClick={onClose} className="block text-lg font-medium text-gray-800 hover:text-gray-600">
-                My Profile
+                {UI.myProfile}
               </Link>
             </li>
             {isAdmin && (
                 <li className="mb-2">
                   <Link to="/admin/stats" onClick={onClose} className="block text-lg font-medium text-gray-800 hover:text-gray-600">
-                    Stats Overview
+                    {UI.stats}
                   </Link>
                 </li>
             )}
             {canManageAllAds && (
                 <li className="mb-2">
                   <Link to="/admin/assign-ads" onClick={onClose} className="block text-lg font-medium text-gray-800 hover:text-gray-600">
-                    Assign Profiles
+                    {UI.assignProfiles}
                   </Link>
                 </li>
             )}
             <li className="mb-2">
               <Link to="/about" onClick={onClose} className="block text-lg font-medium text-gray-800 hover:text-gray-600">
-                About Us
+                {UI.about}
               </Link>
             </li>
             <li className="mb-2">
               <Link to="/terms" onClick={onClose} className="block text-lg font-medium text-gray-800 hover:text-gray-600">
-                Terms & Conditions
+                {UI.terms}
               </Link>
             </li>
           </ul>
@@ -84,18 +85,18 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({ isOpen, onClose, onAuthChange
             {isLoggedIn ? (
               <div className="space-y-2">
                 <p className="text-xs text-gray-500">
-                  Signed in as: <span className="font-semibold text-gray-700">{username || 'Unknown'}</span>
-                  {isAdmin ? ' (admin)' : isAdManager ? ' (ad manager)' : ''}
+                  {UI.signedInAs}<span className="font-semibold text-gray-700">{username || UI.unknown}</span>
+                  {isAdmin ? UI.adminRole : isAdManager ? UI.managerRole : ''}
                 </p>
                 <button
                   onClick={handleLogout}
                   className="w-full py-2 px-3 rounded-lg bg-rose-500 text-white text-sm font-semibold hover:bg-rose-600"
                 >
-                  Logout
+                  {UI.logout}
                 </button>
               </div>
             ) : (
-              <p className="text-xs text-gray-400">Please login from the top bar on Home to manage your profile.</p>
+              <p className="text-xs text-gray-400">{UI.loginHint}</p>
             )}
           </div>
         </nav>

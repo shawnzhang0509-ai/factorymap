@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { LOOKING_FOR_OPTIONS, type LookingForKey } from '../constants/socialTags';
+import { UI } from '../constants/i18n';
 
 interface LookingForFilterDropdownProps {
   /** null = no filter */
@@ -52,8 +53,8 @@ const LookingForFilterDropdown: React.FC<LookingForFilterDropdownProps> = ({ val
 
   const summaryText =
     value == null
-      ? 'All goals'
-      : LOOKING_FOR_OPTIONS.find((o) => o.key === value)?.label ?? 'Goal';
+      ? UI.allGoals
+      : LOOKING_FOR_OPTIONS.find((o) => o.key === value)?.label ?? UI.goal;
 
   const apply = (next: LookingForKey | null) => {
     onChange(next);
@@ -85,9 +86,9 @@ const LookingForFilterDropdown: React.FC<LookingForFilterDropdownProps> = ({ val
           onClick={(e) => e.stopPropagation()}
         >
           <div className="border-b border-gray-100 p-2">
-            <p className="text-xs font-semibold text-gray-600">Looking for</p>
+            <p className="text-xs font-semibold text-gray-600">{UI.lookingFor}</p>
             <p className="text-[10px] text-gray-500 mt-0.5">
-              Filter people by what they want from connections
+              {UI.goalFilterHint}
             </p>
           </div>
           <div className="max-h-52 overflow-y-auto p-2 space-y-1">
@@ -99,7 +100,7 @@ const LookingForFilterDropdown: React.FC<LookingForFilterDropdownProps> = ({ val
                 setOpen(false);
               }}
             >
-              Any goal (show all)
+              {UI.anyGoal}
             </button>
             {LOOKING_FOR_OPTIONS.map((opt) => (
               <button
@@ -123,14 +124,14 @@ const LookingForFilterDropdown: React.FC<LookingForFilterDropdownProps> = ({ val
               className="flex-1 rounded-lg border border-gray-300 py-1.5 text-sm font-medium text-gray-600"
               onClick={() => setOpen(false)}
             >
-              Cancel
+              {UI.cancel}
             </button>
             <button
               type="button"
               className="flex-1 rounded-lg bg-violet-600 py-1.5 text-sm font-semibold text-white"
               onClick={() => apply(draft)}
             >
-              Apply
+              {UI.apply}
             </button>
           </div>
         </div>
@@ -146,7 +147,7 @@ const LookingForFilterDropdown: React.FC<LookingForFilterDropdownProps> = ({ val
         onClick={handleTriggerClick}
         className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-full border border-white/50 bg-white/40 px-2 py-0.5 text-[11px] font-semibold text-gray-800 shadow-sm backdrop-blur-sm hover:bg-white/55 sm:gap-1.5 sm:px-2.5 sm:py-1 sm:text-xs"
       >
-        <span className="shrink-0">Goal</span>
+        <span className="shrink-0">{UI.goal}</span>
         <span className="min-w-0 truncate text-gray-500">{summaryText}</span>
         <span className="shrink-0 text-gray-400">{open ? '▲' : '▼'}</span>
       </button>

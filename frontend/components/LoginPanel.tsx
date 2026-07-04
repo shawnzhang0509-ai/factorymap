@@ -1,7 +1,7 @@
-// components/LoginModal.tsx
 import React, { useState } from 'react';
 import { X, Lock } from 'lucide-react';
 import { getApiBaseUrl } from '../config/api';
+import { UI } from '../constants/i18n';
 
 interface LoginModalProps {
   onLoginSuccess: (payload: { username: string; token: string; isAdmin: boolean; isAdManager: boolean }) => void;
@@ -50,15 +50,11 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
         onLoginSuccess({ username: resolvedUsername, token, isAdmin, isAdManager });
         onClose();
       } else {
-        setError(data.error || 'Invalid username or password');
+        setError(data.error || UI.invalidCredentials);
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError(
-        mode === 'register'
-          ? 'Register failed. Please check your input or network.'
-          : 'Login failed. Please check your input or network.'
-      );
+      setError(mode === 'register' ? UI.registerFailed : UI.loginFailed);
     }
   };
 
@@ -69,7 +65,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold flex items-center gap-2">
               <Lock className="w-5 h-5 text-rose-500" />
-              {mode === 'login' ? 'Login' : 'Register'}
+              {mode === 'login' ? UI.login : UI.register}
             </h2>
             <button onClick={onClose} className="hover:text-gray-500">
               <X className="w-5 h-5" />
@@ -78,7 +74,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <input
-              placeholder="Username"
+              placeholder={UI.username}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-rose-500"
@@ -86,7 +82,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
             />
             <input
               type="password"
-              placeholder="Password"
+              placeholder={UI.password}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-rose-500"
@@ -97,7 +93,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
               type="submit"
               className="w-full bg-rose-500 text-white py-3 rounded-xl font-bold hover:bg-rose-600 transition"
             >
-              {mode === 'login' ? 'Login' : 'Create Account'}
+              {mode === 'login' ? UI.login : UI.createAccount}
             </button>
             <button
               type="button"
@@ -107,7 +103,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
               }}
               className="w-full text-sm text-gray-600 hover:text-gray-800 underline"
             >
-              {mode === 'login' ? 'No account? Register here' : 'Already have an account? Login'}
+              {mode === 'login' ? UI.noAccount : UI.hasAccount}
             </button>
           </form>
         </div>
