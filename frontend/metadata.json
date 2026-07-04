@@ -1,5 +1,5 @@
 {
-  "name": "China Factory Map",
-  "description": "Mobile-first map of verified Chinese manufacturers and suppliers for overseas buyers, with MOQ filters, industrial-zone search, and admin tools.",
+  "name": "MBTI Social Map",
+  "description": "Mobile-first map to discover and connect with people nearby by MBTI personality type.",
   "requestFramePermissions": ["geolocation"]
 }

@@ -3,77 +3,77 @@ from app.models.shop import Shop
 
 app = create_app()
 
-# Seed demo factories when the database is empty (China B2B context)
+# Seed demo MBTI profiles when the database is empty
 with app.app_context():
     if Shop.query.count() == 0:
-        print("🌱 No factories found — creating demo China suppliers…")
+        print("🌱 No profiles found — creating demo MBTI social pins…")
         demos = [
             Shop(
-                name="Shenzhen Bright Electronics Co.",
-                address="Nanshan District, Shenzhen, Guangdong",
-                phone="+86-755-0000-1001",
+                name="小雨",
+                address="静安区, 上海",
+                phone="+86-138-0000-1001",
+                lat=31.2304,
+                lng=121.4737,
+                badge_text="ENFP",
+                new_girls_last_15_days=True,
+                about_me="爱咖啡、摄影和周末徒步。INFP 朋友们都说我很会倾听。",
+                additional_price="friends,activity",
+                filter_city="上海",
+                min_spend=26,
+                main_product="Coffee, Photography, Hiking",
+            ),
+            Shop(
+                name="Alex",
+                address="南山区, 深圳",
+                phone="+86-139-0000-2002",
                 lat=22.5431,
                 lng=114.0579,
-                badge_text="Industry Leader, ISO 9001 Certified, Export Experience",
+                badge_text="INTJ",
                 new_girls_last_15_days=False,
-                about_me="Full-service EMS partner for consumer electronics; SMT lines, testing lab, and English-speaking PMs.",
-                additional_price="FOB Shenzhen · Typical lead time 20–28 days · Tooling quoted separately",
-                filter_city="Pearl River Delta",
-                min_spend=3,
-                main_product="Consumer electronics & PCBA",
+                about_me="Product designer by day. Looking for thoughtful conversations and board game nights.",
+                additional_price="friends,networking",
+                filter_city="深圳",
+                min_spend=29,
+                main_product="Design, Board games, Tech",
             ),
             Shop(
-                name="Suzhou Precision Metalworks",
-                address="Suzhou Industrial Park, Jiangsu",
-                phone="+86-512-0000-2002",
-                lat=31.3160,
-                lng=120.7480,
-                badge_text="OEM/ODM Specialist, Fast Turnaround",
+                name="Mia",
+                address="朝阳区, 北京",
+                phone="+86-136-0000-3003",
+                lat=39.9042,
+                lng=116.4074,
+                badge_text="INFJ",
                 new_girls_last_15_days=False,
-                about_me="CNC machining, sheet metal, and powder coating for industrial buyers in EU/US.",
-                additional_price="Low MOQ pilot runs available · PPAP on request",
-                filter_city="Yangtze River Delta",
-                min_spend=2,
-                main_product="CNC machined components",
+                about_me="喜欢读书、独立音乐和逛博物馆。慢热但真诚。",
+                additional_price="friends,dating",
+                filter_city="北京",
+                min_spend=24,
+                main_product="Reading, Music, Art",
             ),
             Shop(
-                name="Qingdao Harbor Textiles Ltd.",
-                address="Huangdao, Qingdao, Shandong",
-                phone="+86-532-0000-3003",
-                lat=35.8704,
-                lng=120.1964,
-                badge_text="Export Experience, Trade Assurance",
-                new_girls_last_15_days=False,
-                about_me="Knitwear and outdoor fabrics with OEKO-TEX materials; long-term OEM for EU retailers.",
-                additional_price="LC at sight available for qualified buyers",
-                filter_city="Bohai Economic Rim",
-                min_spend=4,
-                main_product="Technical textiles & apparel",
-            ),
-            Shop(
-                name="Chongqing WestTech Motors",
-                address="Liangjiang New Area, Chongqing",
-                phone="+86-23-0000-4004",
-                lat=29.5630,
-                lng=106.5516,
-                badge_text="Industry Leader, OEM/ODM Specialist, Trade Assurance",
-                new_girls_last_15_days=False,
-                about_me="Brushless DC motors and gearmotors for appliances and mobility OEMs.",
-                additional_price="Annual volume agreements preferred · onsite audit welcome",
-                filter_city="Central & Western China",
-                min_spend=4,
-                main_product="Motors & electromechanical assemblies",
+                name="Chris",
+                address="西湖区, 杭州",
+                phone="+86-137-0000-4004",
+                lat=30.2741,
+                lng=120.1551,
+                badge_text="ESTP",
+                new_girls_last_15_days=True,
+                about_me="Outdoor sports addict — climbing, cycling, and trying new restaurants.",
+                additional_price="activity,friends",
+                filter_city="杭州",
+                min_spend=27,
+                main_product="Fitness, Food, Travel",
             ),
         ]
         for row in demos:
             db.session.add(row)
         db.session.commit()
-        print("✅ Demo factories created.")
+        print("✅ Demo profiles created.")
     else:
-        print("ℹ️  Factory data already present — skipping demo seed.")
+        print("ℹ️  Profile data already present — skipping demo seed.")
 
 if __name__ == '__main__':
-    print('🚀 API server')
+    print('🚀 MBTI Social Map API')
     print('   - http://0.0.0.0:5000')
     print('   - GET /shop/shops')
     app.run(host='0.0.0.0', debug=True, port=5000)

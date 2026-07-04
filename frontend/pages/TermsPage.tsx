@@ -30,53 +30,49 @@ const TermsPage: React.FC = () => {
         <ShieldCheck className="w-8 h-8 flex-shrink-0" />
         <div>
           <h2 className="font-bold text-lg">Terms of Use</h2>
-          <p className="text-sm opacity-90">China Factory Map — B2B supplier directory</p>
+          <p className="text-sm opacity-90">MBTI Social Map — community guidelines</p>
         </div>
       </div>
 
       <section>
         <h3 className="text-lg font-bold text-gray-900 mb-2">1. Purpose of Service</h3>
         <p className="text-gray-600 leading-relaxed">
-          China Factory Map is an information directory that helps international buyers discover manufacturing
-          suppliers in China. We do not manufacture goods, broker contracts, or guarantee supplier performance.
-          All sourcing, due diligence, negotiations, and transactions are conducted directly between you and the
-          listed factory.
+          MBTI Social Map helps people discover others nearby on a map and connect based on personality type and shared
+          interests. We do not guarantee compatibility, safety of in-person meetings, or the accuracy of user profiles.
         </p>
       </section>
 
       <section>
-        <h3 className="text-lg font-bold text-gray-900 mb-2">2. Listing Accuracy</h3>
+        <h3 className="text-lg font-bold text-gray-900 mb-2">2. Profile Accuracy</h3>
         <p className="text-gray-600 leading-relaxed">
-          Factory profiles, credentials, MOQ tiers, and contact details are provided by suppliers or administrators
-          and may change without notice. You are responsible for independently verifying business licenses, export
-          qualifications, product samples, and compliance before placing orders.
+          Profiles are created by users or moderators. You are responsible for the information you share. Always verify
+          someone&apos;s identity through your own judgment before meeting in person.
         </p>
       </section>
 
       <section>
         <h3 className="text-lg font-bold text-gray-900 mb-2">3. Acceptable Use</h3>
         <ul className="list-disc pl-5 space-y-2 text-gray-600">
-          <li>Use the directory only for legitimate B2B sourcing and supplier research.</li>
-          <li>Do not scrape, spam, harass suppliers, or misrepresent your identity or purchasing intent.</li>
-          <li>Do not upload unlawful, misleading, or infringing content through admin tools.</li>
-          <li>Violations may result in restricted access or removal of listings.</li>
+          <li>Be respectful. No harassment, hate speech, spam, or impersonation.</li>
+          <li>Do not share others&apos; private information without consent.</li>
+          <li>Meet in public places for first meetings. Tell a friend where you are going.</li>
+          <li>Violations may result in profile removal or restricted access.</li>
         </ul>
       </section>
 
       <section>
-        <h3 className="text-lg font-bold text-gray-900 mb-2">4. Privacy & Data</h3>
+        <h3 className="text-lg font-bold text-gray-900 mb-2">4. Privacy & Location</h3>
         <p className="text-gray-600 leading-relaxed">
-          Location data is used only to show nearby suppliers on the map and is not stored permanently without your
-          consent. Admin accounts and listing edits are stored on our servers. See our privacy practices in the About
-          section or contact us for questions.
+          Location data is used to show nearby people on the map. Consider using approximate locations and never share
+          exact home addresses publicly.
         </p>
       </section>
 
       <section>
         <h3 className="text-lg font-bold text-gray-900 mb-2">5. Limitation of Liability</h3>
         <p className="text-gray-600 leading-relaxed">
-          We are not liable for disputes, product defects, payment losses, shipping issues, or other damages arising
-          from your dealings with any listed supplier. Use of this directory is at your own risk.
+          We are not liable for disputes, harm, or losses arising from interactions between users. Use the service at
+          your own risk.
         </p>
       </section>
 
@@ -84,7 +80,7 @@ const TermsPage: React.FC = () => {
         <p className="text-xs text-gray-400 text-center">
           Last Updated: June 2026
           <br />
-          By using China Factory Map, you agree to these terms.
+          By using MBTI Social Map, you agree to these guidelines.
         </p>
       </div>
     </div>

@@ -26,16 +26,16 @@ const ContactModal: React.FC<ContactModalProps> = ({ onClose }) => {
           </button>
         </div>
         <p className="text-gray-600 mb-6">
-          如需商务合作、数据纠错或技术支持，请通过以下方式联系我们：
+          如需反馈、举报或合作，请通过以下方式联系我们：
         </p>
         <div className="space-y-4">
           <div className="flex items-center space-x-3">
             <span>📧</span>
-            <span>contact@factorymap.app</span>
+            <span>hello@mbtisocialmap.app</span>
           </div>
           <div className="flex items-center space-x-3">
             <span>🌐</span>
-            <span>China Factory Map — B2B supplier directory</span>
+            <span>MBTI Social Map — meet people nearby by personality type</span>
           </div>
         </div>
       </div>

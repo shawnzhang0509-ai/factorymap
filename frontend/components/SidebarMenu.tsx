@@ -51,7 +51,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({ isOpen, onClose, onAuthChange
             </li>
             <li className="mb-2">
               <Link to="/my-ads" onClick={onClose} className="block text-lg font-medium text-gray-800 hover:text-gray-600">
-                My Ads
+                My Profile
               </Link>
             </li>
             {isAdmin && (
@@ -64,7 +64,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({ isOpen, onClose, onAuthChange
             {canManageAllAds && (
                 <li className="mb-2">
                   <Link to="/admin/assign-ads" onClick={onClose} className="block text-lg font-medium text-gray-800 hover:text-gray-600">
-                    Assign Ads
+                    Assign Profiles
                   </Link>
                 </li>
             )}
@@ -95,7 +95,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({ isOpen, onClose, onAuthChange
                 </button>
               </div>
             ) : (
-              <p className="text-xs text-gray-400">Please login from the top bar on Home to manage ads.</p>
+              <p className="text-xs text-gray-400">Please login from the top bar on Home to manage your profile.</p>
             )}
           </div>
         </nav>
