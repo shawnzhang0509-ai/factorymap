@@ -88,6 +88,18 @@ _LEGACY_PAGE_MARKERS = (
 )
 
 
+def _maybe_seed_demo_profiles():
+    try:
+        from app.demo_seed import seed_demo_profiles_if_empty
+
+        created = seed_demo_profiles_if_empty()
+        if created:
+            print(f"🌱 Seeded {created} demo MBTI profile(s)")
+    except Exception as e:
+        db.session.rollback()
+        print(f"⚠️ demo seed skipped: {e}")
+
+
 def _maybe_purge_factory_data_once():
     """One-time ops switch: set PURGE_ALL_SHOPS_ONCE=1 on Render, redeploy, then remove it."""
     if os.environ.get("PURGE_ALL_SHOPS_ONCE") != "1":
@@ -199,6 +211,7 @@ def create_app():
         _ensure_user_ad_manager_column()
         _migrate_legacy_site_pages()
         _maybe_purge_factory_data_once()
+        _maybe_seed_demo_profiles()
 
     @app.route('/')
     def home():
