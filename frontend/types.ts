@@ -16,6 +16,10 @@ export interface ShopBase {
   min_spend?: number;
   /** Interests — comma-separated */
   main_product?: string;
+  /** Xiaohongshu handle or profile URL */
+  social_xhs?: string;
+  /** Bilibili UID or profile URL */
+  social_bilibili?: string;
   can_edit?: boolean;
 }
 

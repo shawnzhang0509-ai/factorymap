@@ -35,6 +35,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     filter_city: '',
     min_spend: undefined,
     main_product: '',
+    social_xhs: '',
+    social_bilibili: '',
   });
 
   const [mbtiType, setMbtiType] = useState<string>('ENFP');
@@ -73,7 +75,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newShop.name || !newShop.phone || !mbtiType) {
+    if (!newShop.name || !mbtiType) {
       setError(UI.requiredFields);
       return;
     }
@@ -99,7 +101,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
     formData.append('name', newShop.name!);
     formData.append('address', address);
-    formData.append('phone', newShop.phone!);
+    const phone = (newShop.phone || '').trim();
+    if (phone) {
+      formData.append('phone', phone);
+    }
     formData.append('lat', String(lat));
     formData.append('lng', String(lng));
     formData.append('badge_text', mbtiType);
@@ -114,6 +119,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     }
     if (newShop.main_product?.trim()) {
       formData.append('main_product', newShop.main_product.trim());
+    }
+    if ((newShop.social_xhs || '').trim()) {
+      formData.append('social_xhs', (newShop.social_xhs || '').trim());
+    }
+    if ((newShop.social_bilibili || '').trim()) {
+      formData.append('social_bilibili', (newShop.social_bilibili || '').trim());
     }
     if (newShop.min_spend != null && newShop.min_spend >= 16) {
       formData.append('min_spend', String(newShop.min_spend));
@@ -157,6 +168,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         filter_city: '',
         min_spend: undefined,
         main_product: '',
+        social_xhs: '',
+        social_bilibili: '',
       });
       setMbtiType('ENFP');
       setLookingFor(['friends']);
@@ -206,7 +219,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 }`}
                 value={newShop.name}
                 onChange={(e) => setNewShop({ ...newShop, name: e.target.value })}
-                placeholder="e.g. Alex, 小雨"
+                placeholder={UI.namePlaceholder}
               />
               {nameDuplicate && (
                 <p className="text-[11px] text-amber-700 font-semibold mt-1">
@@ -315,15 +328,42 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{UI.phone} *</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
+                {UI.phoneOptional}
+              </label>
               <input
-                required
-                type="tel"
+                type="text"
                 className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all"
                 value={newShop.phone}
                 onChange={(e) => setNewShop({ ...newShop, phone: e.target.value })}
-                placeholder="WeChat / mobile for connecting"
+                placeholder={UI.contactPlaceholder}
               />
+            </div>
+
+            <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200 space-y-3">
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
+                {UI.socialMedia}
+              </label>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1">{UI.xiaohongshu}</label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-violet-500 outline-none text-sm text-gray-800"
+                  value={newShop.social_xhs || ''}
+                  onChange={(e) => setNewShop({ ...newShop, social_xhs: e.target.value })}
+                  placeholder={UI.xiaohongshuPlaceholder}
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1">{UI.bilibili}</label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-violet-500 outline-none text-sm text-gray-800"
+                  value={newShop.social_bilibili || ''}
+                  onChange={(e) => setNewShop({ ...newShop, social_bilibili: e.target.value })}
+                  placeholder={UI.bilibiliPlaceholder}
+                />
+              </div>
             </div>
 
             <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
@@ -358,7 +398,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                   const v = e.target.value;
                   setNewShop({ ...newShop, min_spend: v ? Number(v) : undefined });
                 }}
-                placeholder="e.g. 25"
+                placeholder={UI.agePlaceholder}
               />
             </div>
 
@@ -368,7 +408,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-violet-500 outline-none transition-all"
                 value={newShop.main_product || ''}
                 onChange={(e) => setNewShop({ ...newShop, main_product: e.target.value })}
-                placeholder="e.g. Coffee, hiking, photography"
+                placeholder={UI.interestsPlaceholder}
               />
             </div>
 
@@ -381,7 +421,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 className="w-full px-3 py-2 rounded-xl bg-white border border-violet-200 focus:ring-2 focus:ring-violet-500 outline-none transition-all text-sm text-gray-700 resize-none"
                 value={newShop.about_me}
                 onChange={(e) => setNewShop({ ...newShop, about_me: e.target.value })}
-                placeholder="A short intro — hobbies, vibe, what you are like…"
+                placeholder={UI.aboutMePlaceholder}
               />
             </div>
 
