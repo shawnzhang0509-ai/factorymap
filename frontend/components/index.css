@@ -95,6 +95,18 @@ html, body {
   touch-action: none;
   -webkit-transform: translateZ(0);
   transform: translateZ(0);
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  box-shadow: 0 -6px 28px rgba(0, 0, 0, 0.18), 0 -1px 0 rgba(255, 255, 255, 0.5) inset;
+  /* Solid gradient — skip backdrop-filter for faster mobile paint */
+  background: linear-gradient(
+    to top,
+    rgba(255, 130, 90, 0.97),
+    rgba(255, 190, 120, 0.9),
+    rgba(255, 248, 235, 0.88)
+  );
+  contain: layout style paint;
+  will-change: height;
 }
 
 .map-bottom-drawer .drawer-scroll-area {
@@ -110,6 +122,10 @@ html, body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.map-skeleton {
+  background: linear-gradient(135deg, #e8f4f8 0%, #f5f0e8 50%, #f8ece8 100%);
 }
 
 .map-fab-column {
