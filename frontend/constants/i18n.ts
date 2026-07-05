@@ -40,6 +40,8 @@ export const UI = {
   age: '岁',
   interests: '兴趣',
   city: '城市',
+  region: '区域',
+  selectRegion: '请选择区域',
   aboutMe: '关于我',
   lookingFor: '交友目的',
   mbtiType: 'MBTI 类型',
@@ -89,6 +91,13 @@ export const UI = {
   noMbtiMatch: '没有符合所选 MBTI 类型的资料。',
   noGoalMatch: '没有符合此交友目的的资料。',
   noFilterMatch: '没有符合当前筛选条件的资料。',
+  noRegionMatch: '该区域暂无资料，试试切换区域或全国。',
+  // Region filter
+  regionFilter: '选择地图区域',
+  regionFilterHint: '筛选该区域的人，并移动地图视角',
+  regionMapHint: '地图会定位到该区域',
+  setDefaultRegion: '设为默认打开区域',
+  defaultRegionNow: (name: string) => `当前默认：${name}`,
   // Filters
   allTypes: '全部类型',
   typeCount: (n: number) => `${n} 种类型`,

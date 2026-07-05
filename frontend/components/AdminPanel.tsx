@@ -5,6 +5,7 @@ import { MBTI_TYPES } from '../constants/mbtiTypes';
 import { LOOKING_FOR_OPTIONS } from '../constants/socialTags';
 import { getApiBaseUrl } from '../config/api';
 import { UI } from '../constants/i18n';
+import { SELECTABLE_REGIONS } from '../constants/filterRegions';
 
 interface AdminPanelProps {
   onAddShop: (shop: Shop) => void;
@@ -270,14 +271,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <MapPin size={14} /> {UI.city}
+                <MapPin size={14} /> {UI.region}
               </label>
-              <input
+              <select
                 className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-violet-500 outline-none text-sm text-gray-800"
                 value={newShop.filter_city || ''}
                 onChange={(e) => setNewShop({ ...newShop, filter_city: e.target.value })}
-                placeholder="e.g. Shanghai, Beijing"
-              />
+              >
+                <option value="">{UI.selectRegion}</option>
+                {SELECTABLE_REGIONS.map((r) => (
+                  <option key={r.key} value={r.label}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
