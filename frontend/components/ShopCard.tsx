@@ -10,7 +10,7 @@ import { LOOKING_FOR_OPTIONS, interestsFromField } from '../constants/socialTags
 import { getApiBaseUrl } from '../config/api';
 import { UI } from '../constants/i18n';
 import { SELECTABLE_REGIONS, inferShopRegion, getRegionByKey } from '../constants/filterRegions';
-import { geocodeAddressWithOffset } from '../utils/geocode';
+import { geolocateWithPrivacyOffset, formatCoords } from '../utils/geocode';
 
 interface ShopCardProps {
   shop: Shop;
@@ -52,7 +52,8 @@ const ShopCard: React.FC<ShopCardProps> = ({
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
-  const [geocoding, setGeocoding] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [coordInput, setCoordInput] = useState('');
   const [geocodeMessage, setGeocodeMessage] = useState('');
   const gestureStateRef = useRef<GestureState>('idle');
   const gestureStartRef = useRef<{ x: number; y: number; at: number } | null>(null);
@@ -172,6 +173,10 @@ const ShopCard: React.FC<ShopCardProps> = ({
   const openEditor = () => {
     resetGestureMachine();
     setShowConfirmSave(false);
+    const lat = typeof shop.lat === 'number' ? shop.lat : null;
+    const lng = typeof shop.lng === 'number' ? shop.lng : null;
+    setCoordInput(lat != null && lng != null ? formatCoords(lat, lng) : '');
+    setGeocodeMessage('');
     setIsEditing(true);
   };
 
@@ -182,22 +187,23 @@ const ShopCard: React.FC<ShopCardProps> = ({
     setGeocodeMessage('');
   };
 
-  const handleGeocodeFromAddress = async () => {
-    const address = (editData.address || '').trim();
-    if (address.length < 2) {
-      setGeocodeMessage(UI.geocodeFailed);
-      return;
-    }
-    setGeocoding(true);
+  const handleUseMyLocation = async () => {
+    setLocating(true);
     setGeocodeMessage('');
     try {
-      const result = await geocodeAddressWithOffset(address);
-      setEditData((prev) => ({ ...prev, lat: result.lat, lng: result.lng }));
+      const result = await geolocateWithPrivacyOffset();
+      setEditData((prev) => ({
+        ...prev,
+        lat: result.lat,
+        lng: result.lng,
+        address: (prev.address || '').trim() || UI.autoLocationAddress,
+      }));
+      setCoordInput(formatCoords(result.lat, result.lng));
       setGeocodeMessage(UI.geocodeSuccess(result.offset_km));
     } catch (err) {
       setGeocodeMessage(err instanceof Error ? err.message : UI.geocodeFailed);
     } finally {
-      setGeocoding(false);
+      setLocating(false);
     }
   };
 
@@ -510,7 +516,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
             {/* ADDRESS */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">ADDRESS</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">{UI.locationOptional}</label>
               <textarea
                 value={editData.address || ''}
                 onChange={(e) => setEditData({ ...editData, address: e.target.value })}
@@ -613,50 +619,56 @@ const ShopCard: React.FC<ShopCardProps> = ({
             )}
 
             {/* COORDINATES */}
-            <div className="bg-gray-50 p-3 rounded-lg border">
-              <label className="block text-xs font-bold text-gray-500 mb-1">{UI.coordinates}</label>
+            <div className="bg-violet-50/40 p-3 rounded-lg border border-violet-100 space-y-2">
+              <label className="block text-xs font-bold text-violet-800 mb-1">{UI.coordsLabel}</label>
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  void handleGeocodeFromAddress();
+                  void handleUseMyLocation();
                 }}
-                disabled={geocoding || !(editData.address || '').trim()}
-                className="mb-2 inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-bold text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+                disabled={locating}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-violet-300 bg-violet-600 px-3 py-2 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-60"
               >
-                <Navigation className="w-3 h-3" />
-                {geocoding ? UI.geocoding : UI.geocodeFromAddress}
+                <Navigation className="w-3.5 h-3.5" />
+                {locating ? UI.geocoding : UI.useMyLocationForCoords}
               </button>
+              <p className="text-[10px] text-violet-900/70 leading-snug">{UI.geocodeHint}</p>
               <input
                 type="text"
-                placeholder={UI.pasteCoords}
-                className="w-full px-3 py-2 text-sm border rounded-lg font-mono bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                value={coordInput}
+                placeholder={UI.coordsManualHint}
+                className="w-full px-3 py-2 text-sm border border-violet-100 rounded-lg font-mono bg-white focus:ring-2 focus:ring-violet-500 outline-none"
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => {
-                  const value = e.target.value.trim();
-                  const parts = value.split(/[,，\s]+/).filter(p => p !== '');
+                  const value = e.target.value;
+                  setCoordInput(value);
+                  setGeocodeMessage('');
+                  const parts = value.split(/[,，\s]+/).filter((p) => p !== '');
                   if (parts.length >= 2) {
                     const latNum = parseFloat(parts[0]);
                     const lngNum = parseFloat(parts[1]);
                     if (!isNaN(latNum) && !isNaN(lngNum)) {
                       setEditData({ ...editData, lat: latNum, lng: lngNum });
-                      setGeocodeMessage('');
                       return;
                     }
                     const latDms = dmsToDecimal(parts[0]);
                     const lngDms = dmsToDecimal(parts[1]);
                     if (latDms !== null && lngDms !== null) {
                       setEditData({ ...editData, lat: latDms, lng: lngDms });
-                      setGeocodeMessage('');
                     }
                   }
                 }}
               />
-              <p className="text-[10px] text-gray-400 mt-1 text-right">
-                {editData.lat?.toFixed(4)}, {editData.lng?.toFixed(4)}
-              </p>
+              {editData.lat != null && editData.lng != null && (
+                <p className="text-[10px] text-green-600 font-semibold">
+                  {UI.parsedCoords(editData.lat, editData.lng)}
+                </p>
+              )}
               {geocodeMessage ? (
-                <p className="text-[10px] text-green-600 font-semibold mt-1">{geocodeMessage}</p>
+                <p className={`text-[10px] font-semibold ${geocodeMessage.startsWith('已生成') ? 'text-green-600' : 'text-amber-700'}`}>
+                  {geocodeMessage}
+                </p>
               ) : null}
             </div>
 
