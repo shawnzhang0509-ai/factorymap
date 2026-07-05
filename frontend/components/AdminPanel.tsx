@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { X, Upload, Info, DollarSign, MapPin } from 'lucide-react';
+import { X, Upload, Info, DollarSign, MapPin, Navigation } from 'lucide-react';
 import { ShopCreate, Shop } from './types';
 import { MBTI_TYPES } from '../constants/mbtiTypes';
 import { LOOKING_FOR_OPTIONS } from '../constants/socialTags';
 import { getApiBaseUrl } from '../config/api';
 import { UI } from '../constants/i18n';
 import { SELECTABLE_REGIONS } from '../constants/filterRegions';
+import { geocodeAddressWithOffset } from '../utils/geocode';
 
 interface AdminPanelProps {
   onAddShop: (shop: Shop) => void;
@@ -40,14 +41,40 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const [mbtiType, setMbtiType] = useState<string>('ENFP');
   const [lookingFor, setLookingFor] = useState<string[]>(['friends']);
+  const [coordInput, setCoordInput] = useState('');
+  const [geocoding, setGeocoding] = useState(false);
+  const [coordsFromAddress, setCoordsFromAddress] = useState(false);
+  const [geocodeMessage, setGeocodeMessage] = useState('');
 
   const nameKey = (newShop.name || '').trim().toLowerCase();
   const nameDuplicate =
     nameKey.length > 0 && existingShopNamesLower.includes(nameKey);
 
+  const handleGeocodeFromAddress = async () => {
+    const address = (newShop.address || '').trim();
+    if (address.length < 2) {
+      setGeocodeMessage(UI.geocodeFailed);
+      return;
+    }
+    setGeocoding(true);
+    setGeocodeMessage('');
+    try {
+      const result = await geocodeAddressWithOffset(address);
+      setNewShop((prev) => ({ ...prev, lat: result.lat, lng: result.lng }));
+      setCoordInput(`${result.lat.toFixed(6)} ${result.lng.toFixed(6)}`);
+      setCoordsFromAddress(true);
+      setGeocodeMessage(UI.geocodeSuccess(result.offset_km));
+    } catch (err) {
+      setGeocodeMessage(err instanceof Error ? err.message : UI.geocodeFailed);
+      setCoordsFromAddress(false);
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newShop.name || !newShop.address || !newShop.phone || !newShop.lat || !newShop.lng || !mbtiType) {
+    if (!newShop.name || !newShop.address || !newShop.phone || !mbtiType) {
       setError(UI.requiredFields);
       return;
     }
@@ -59,6 +86,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     setIsSubmitting(true);
     setError('');
 
+    let lat = newShop.lat;
+    let lng = newShop.lng;
+    if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) {
+      try {
+        const result = await geocodeAddressWithOffset(newShop.address!.trim());
+        lat = result.lat;
+        lng = result.lng;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : UI.requiredCoords);
+        setIsSubmitting(false);
+        return;
+      }
+    }
     const API_BASE_URL = getApiBaseUrl();
     const add_api_url = `${API_BASE_URL}/shop/add`;
     const formData = new FormData();
@@ -66,8 +106,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     formData.append('name', newShop.name!);
     formData.append('address', newShop.address!);
     formData.append('phone', newShop.phone!);
-    formData.append('lat', String(newShop.lat));
-    formData.append('lng', String(newShop.lng));
+    formData.append('lat', String(lat));
+    formData.append('lng', String(lng));
     formData.append('badge_text', mbtiType);
     formData.append('additional_price', lookingFor.join(','));
     formData.append('new_girls_last_15_days', String(newShop.new_girls_last_15_days || false));
@@ -128,6 +168,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       });
       setMbtiType('ENFP');
       setLookingFor(['friends']);
+      setCoordInput('');
+      setCoordsFromAddress(false);
+      setGeocodeMessage('');
       onClose();
     } catch (err) {
       setError(UI.networkError);
@@ -186,9 +229,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 required
                 className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all"
                 value={newShop.address}
-                onChange={(e) => setNewShop({ ...newShop, address: e.target.value })}
-                placeholder="e.g. Jing'an, Shanghai"
+                onChange={(e) => {
+                  setNewShop({ ...newShop, address: e.target.value });
+                  setCoordsFromAddress(false);
+                  setGeocodeMessage('');
+                }}
+                placeholder={UI.addressPlaceholder}
               />
+              <button
+                type="button"
+                onClick={() => void handleGeocodeFromAddress()}
+                disabled={geocoding || !(newShop.address || '').trim()}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 hover:bg-violet-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                <Navigation className="w-3.5 h-3.5" />
+                {geocoding ? UI.geocoding : UI.geocodeFromAddress}
+              </button>
+              <p className="text-[10px] text-gray-500 mt-1.5 leading-snug">{UI.geocodeHint}</p>
             </div>
 
             <div>
@@ -232,14 +289,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                {UI.coordinates} *
+                {UI.coordinates} {UI.coordsOptional}
               </label>
               <input
                 type="text"
-                placeholder="e.g. 31.230416 121.473701"
+                value={coordInput}
+                placeholder="31.230416 121.473701"
                 className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all font-mono text-sm"
                 onChange={(e) => {
                   const value = e.target.value;
+                  setCoordInput(value);
+                  setCoordsFromAddress(false);
+                  setGeocodeMessage('');
                   const parts = value.split(/\s+/).filter((p) => p.trim());
                   if (parts.length >= 2) {
                     const latDec = parseFloat(parts[0]);
@@ -250,8 +311,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                   }
                 }}
               />
-              {newShop.lat && newShop.lng && (
+              {newShop.lat != null && newShop.lng != null && !coordsFromAddress && coordInput && (
                 <p className="text-xs text-green-600 font-bold mt-1 flex items-center gap-1">
+                  {UI.parsedCoords(newShop.lat, newShop.lng)}
+                </p>
+              )}
+              {geocodeMessage && (
+                <p className={`text-xs font-semibold mt-1 ${coordsFromAddress ? 'text-green-600' : 'text-amber-700'}`}>
+                  {geocodeMessage}
+                </p>
+              )}
+              {newShop.lat != null && newShop.lng != null && coordsFromAddress && (
+                <p className="text-xs text-green-600 font-bold mt-1">
                   {UI.parsedCoords(newShop.lat, newShop.lng)}
                 </p>
               )}

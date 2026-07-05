@@ -210,6 +210,26 @@ def bulk_import_excel():
 def list_all():
     return jsonify({"shops": "This is a test endpoint"})
 
+
+@shop_bp.route('/geocode', methods=['GET'])
+@shop_bp.route('/shop/geocode', methods=['GET'])
+def geocode_address():
+    """Resolve address → WGS-84 coordinates with 2–3 km privacy offset."""
+    address = (request.args.get('address') or '').strip()
+    if len(address) < 2:
+        return jsonify({"error": "地址太短，请填写城市与区县"}), 400
+    try:
+        from app.services.geocode import geocode_address_with_privacy_offset
+
+        result = geocode_address_with_privacy_offset(address)
+        return jsonify({"success": True, **result})
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 404
+    except Exception:
+        current_app.logger.exception("geocode failed for %r", address)
+        return jsonify({"success": False, "error": "地理编码服务暂时不可用，请稍后重试或手动粘贴坐标"}), 502
+
+
 @shop_bp.route('/admin/purge-legacy', methods=['POST'])
 @shop_bp.route('/shop/admin/purge-legacy', methods=['POST'])
 def purge_legacy_factory_data():
