@@ -33,6 +33,8 @@ export interface Shop {
   filter_city?: string;
   min_spend?: number;
   main_product?: string;
+  social_xhs?: string;
+  social_bilibili?: string;
 }
 
 // 🔥 创建店铺时的数据类型 (用于 AdminPanel 表单)
@@ -56,4 +58,6 @@ export interface ShopCreate {
   filter_city?: string;
   min_spend?: number;
   main_product?: string;
+  social_xhs?: string;
+  social_bilibili?: string;
 }

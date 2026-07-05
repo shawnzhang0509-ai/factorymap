@@ -54,6 +54,8 @@ function normalizeShopFromApi(shop: any, apiBase: string): Shop {
     filter_city: shop.filter_city || '',
     min_spend: typeof shop.min_spend === 'number' ? shop.min_spend : undefined,
     main_product: shop.main_product || '',
+    social_xhs: shop.social_xhs || '',
+    social_bilibili: shop.social_bilibili || '',
     about_me: shop.about_me || '',
     additional_price: shop.additional_price || '',
   };

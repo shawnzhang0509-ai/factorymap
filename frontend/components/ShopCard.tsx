@@ -249,6 +249,8 @@ const ShopCard: React.FC<ShopCardProps> = ({
     about_me: shop.about_me || '',
     additional_price: shop.additional_price || '',
     main_product: (shop as Shop & { main_product?: string }).main_product || '',
+    social_xhs: (shop as Shop & { social_xhs?: string }).social_xhs || '',
+    social_bilibili: (shop as Shop & { social_bilibili?: string }).social_bilibili || '',
     filter_city: (shop as Shop & { filter_city?: string }).filter_city || '',
     min_spend:
       typeof (shop as Shop & { min_spend?: number }).min_spend === 'number' &&
@@ -335,6 +337,8 @@ const ShopCard: React.FC<ShopCardProps> = ({
     formData.append('about_me', editData.about_me || '');
     formData.append('additional_price', editData.additional_price || '');
     formData.append('main_product', editData.main_product || '');
+    formData.append('social_xhs', editData.social_xhs || '');
+    formData.append('social_bilibili', editData.social_bilibili || '');
 
     formData.append('badge_text', editData.badge_text || '');
     if (isAdmin) {
@@ -403,6 +407,8 @@ const ShopCard: React.FC<ShopCardProps> = ({
         about_me: editData.about_me,
         additional_price: editData.additional_price,
         main_product: editData.main_product || '',
+        social_xhs: editData.social_xhs || '',
+        social_bilibili: editData.social_bilibili || '',
         filter_city: editData.filter_city || '',
         min_spend: minSpendVal,
       };
@@ -416,6 +422,8 @@ const ShopCard: React.FC<ShopCardProps> = ({
         about_me: editData.about_me,
         additional_price: editData.additional_price,
         main_product: editData.main_product || '',
+        social_xhs: editData.social_xhs || '',
+        social_bilibili: editData.social_bilibili || '',
         filter_city: editData.filter_city || '',
         min_spend: minSpendVal,
       }));
@@ -497,7 +505,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
           >
             {/* NAME */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">NAME</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">{UI.displayName}</label>
               <input
                 value={editData.name || ''}
                 onChange={(e) => setEditData({ ...editData, name: e.target.value })}
@@ -528,36 +536,64 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
             {/* PHONE */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">PHONE</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">{UI.phoneOptional}</label>
               <input
+                type="text"
                 value={editData.phone || ''}
                 onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
+                placeholder={UI.contactPlaceholder}
                 className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
+              <label className="block text-xs font-bold text-gray-500">{UI.socialMedia}</label>
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-500 mb-1">{UI.xiaohongshu}</label>
+                <input
+                  type="text"
+                  value={editData.social_xhs || ''}
+                  onChange={(e) => setEditData({ ...editData, social_xhs: e.target.value })}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder={UI.xiaohongshuPlaceholder}
+                  className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-500 mb-1">{UI.bilibili}</label>
+                <input
+                  type="text"
+                  value={editData.social_bilibili || ''}
+                  onChange={(e) => setEditData({ ...editData, social_bilibili: e.target.value })}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder={UI.bilibiliPlaceholder}
+                  className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                />
+              </div>
+            </div>
+
             {/* INTERESTS */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">INTERESTS</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">{UI.interests}</label>
               <input
                 type="text"
                 value={editData.main_product || ''}
                 onChange={(e) => setEditData({ ...editData, main_product: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                placeholder="e.g. Coffee, hiking, photography"
+                placeholder={UI.interestsPlaceholder}
                 className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             {/* BIO */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">ABOUT ME</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">{UI.aboutMe}</label>
               <textarea
                 value={editData.about_me || ''}
                 onChange={(e) => setEditData({ ...editData, about_me: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                placeholder="A short intro about yourself…"
+                placeholder={UI.aboutMePlaceholder}
                 className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 rows={3}
               />
@@ -565,7 +601,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
             {/* LOOKING FOR */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">LOOKING FOR</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">{UI.lookingFor}</label>
               <input
                 type="text"
                 value={editData.additional_price || ''}
@@ -598,7 +634,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
             {shop.can_edit && (
               <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">AGE</label>
+                <label className="block text-xs font-bold text-gray-500 mb-1">{UI.age}{UI.optional}</label>
                 <input
                   type="number"
                   min={16}
@@ -613,7 +649,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
                   }}
                   onClick={(e) => e.stopPropagation()}
                   className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                  placeholder="e.g. 25"
+                  placeholder={UI.agePlaceholder}
                 />
               </div>
             )}
@@ -674,7 +710,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
             {/* IMAGES */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-2">IMAGES</label>
+              <label className="block text-xs font-bold text-gray-500 mb-2">{UI.photos}</label>
               <label 
                 className="flex items-center justify-center gap-2 w-full py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
                 onClick={(e) => e.stopPropagation()}

@@ -61,6 +61,24 @@ def _ensure_shop_main_product_column():
         print(f"⚠️ shop.main_product schema check skipped: {e}")
 
 
+def _ensure_shop_social_columns():
+    try:
+        engine = db.engine
+        insp = inspect(engine)
+        if not insp.has_table("shop"):
+            return
+        names = {c["name"] for c in insp.get_columns("shop")}
+        with engine.begin() as conn:
+            if "social_xhs" not in names:
+                conn.execute(text("ALTER TABLE shop ADD COLUMN social_xhs VARCHAR(200)"))
+                print("✅ Added missing column shop.social_xhs (schema sync)")
+            if "social_bilibili" not in names:
+                conn.execute(text("ALTER TABLE shop ADD COLUMN social_bilibili VARCHAR(200)"))
+                print("✅ Added missing column shop.social_bilibili (schema sync)")
+    except Exception as e:
+        print(f"⚠️ shop social columns schema check skipped: {e}")
+
+
 def _ensure_user_ad_manager_column():
     try:
         engine = db.engine
@@ -218,6 +236,7 @@ def create_app():
         _ensure_shop_filter_city_column()
         _ensure_shop_min_spend_column()
         _ensure_shop_main_product_column()
+        _ensure_shop_social_columns()
         _ensure_user_ad_manager_column()
         _migrate_legacy_site_pages()
         _maybe_purge_factory_data_once()

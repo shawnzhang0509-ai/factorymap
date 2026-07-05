@@ -203,6 +203,26 @@ const ShopDetailPage: React.FC = () => {
             </div>
           )}
 
+          {(shop.social_xhs?.trim() || shop.social_bilibili?.trim()) && (
+            <div className="mb-6">
+              <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide mb-3">{UI.socialMedia}</h3>
+              <div className="space-y-2">
+                {shop.social_xhs?.trim() ? (
+                  <div className="flex items-center justify-between gap-3 bg-pink-50/60 border border-pink-100 rounded-xl px-4 py-3">
+                    <span className="text-xs font-bold text-pink-700">{UI.xiaohongshu}</span>
+                    <span className="text-sm text-gray-800 font-medium truncate">{shop.social_xhs.trim()}</span>
+                  </div>
+                ) : null}
+                {shop.social_bilibili?.trim() ? (
+                  <div className="flex items-center justify-between gap-3 bg-sky-50/60 border border-sky-100 rounded-xl px-4 py-3">
+                    <span className="text-xs font-bold text-sky-700">{UI.bilibili}</span>
+                    <span className="text-sm text-gray-800 font-medium truncate">{shop.social_bilibili.trim()}</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
+
           {shop.additional_price && (
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-2">
