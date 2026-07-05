@@ -9,6 +9,7 @@ import { MBTI_TYPES, mbtiTypeFromBadge } from '../constants/mbtiTypes';
 import { LOOKING_FOR_OPTIONS, interestsFromField } from '../constants/socialTags';
 import { getApiBaseUrl } from '../config/api';
 import { UI } from '../constants/i18n';
+import { SELECTABLE_REGIONS, inferShopRegion, getRegionByKey } from '../constants/filterRegions';
 
 interface ShopCardProps {
   shop: Shop;
@@ -549,14 +550,20 @@ const ShopCard: React.FC<ShopCardProps> = ({
             {/* CITY */}
             {isAdmin && (
               <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">CITY</label>
-                <input
+                <label className="block text-xs font-bold text-gray-500 mb-1">{UI.region}</label>
+                <select
                   value={editData.filter_city || ''}
                   onChange={(e) => setEditData({ ...editData, filter_city: e.target.value })}
                   onClick={(e) => e.stopPropagation()}
                   className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                  placeholder="e.g. Shanghai"
-                />
+                >
+                  <option value="">{UI.selectRegion}</option>
+                  {SELECTABLE_REGIONS.map((r) => (
+                    <option key={r.key} value={r.label}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
 
@@ -943,12 +950,12 @@ const ShopCard: React.FC<ShopCardProps> = ({
       <div className="p-3 space-y-2">
         <div className="flex items-start justify-between gap-2 min-h-[1.25rem] pr-6">
           <h3 className="font-bold text-gray-900 text-base truncate min-w-0 flex-1">{shop.name}</h3>
-          {shop.filter_city?.trim() ? (
+          {(shop.filter_city?.trim() || inferShopRegion(shop) !== 'other') ? (
             <span
               className="shrink-0 max-w-[45%] truncate rounded-md border border-rose-200/90 bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-rose-700 sm:text-[11px]"
-              title={shop.filter_city.trim()}
+              title={shop.filter_city?.trim() || getRegionByKey(inferShopRegion(shop)).label}
             >
-              {shop.filter_city.trim()}
+              {shop.filter_city?.trim() || getRegionByKey(inferShopRegion(shop)).label}
             </span>
           ) : null}
         </div>

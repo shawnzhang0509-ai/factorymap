@@ -10,9 +10,15 @@ import { calculateDistance } from '../utils';
 import LoginPanel from '../components/LoginPanel';
 import ImagePreviewModal from '../components/ImagePreviewPanel';
 import { Plus, Navigation, Filter, Share2, Search, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
-import BadgeFilterDropdown from '../components/BadgeFilterDropdown';
+import RegionFilterDropdown from '../components/RegionFilterDropdown';
 import LookingForFilterDropdown from '../components/LookingForFilterDropdown';
 import { profilePassesLookingForFilter, type LookingForKey } from '../constants/socialTags';
+import {
+  getRegionByKey,
+  loadStoredDefaultRegion,
+  shopMatchesRegion,
+  type SocialRegionKey,
+} from '../constants/filterRegions';
 import { getApiBaseUrl } from '../config/api';
 
 const MapComponent = lazy(() => import('../components/MapComponent'));
@@ -102,6 +108,8 @@ function buildNearbyRangeTitle(
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const initialRegion = loadStoredDefaultRegion();
+  const initialRegionMeta = getRegionByKey(initialRegion);
 
   const [shops, setShops] = useState<Shop[]>(() => loadShopsFromStorage(API_BASE_URL));
   const [shopsLoadStatus, setShopsLoadStatus] = useState<'loading' | 'ready' | 'error' | 'empty'>(() => {
@@ -116,8 +124,12 @@ const HomePage: React.FC = () => {
 
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
-  const [zoom, setZoom] = useState<number>(5.5); 
-  const [center, setCenter] = useState<UserLocation>(CHINA_CENTER);
+  const [zoom, setZoom] = useState<number>(() =>
+    initialRegion !== 'all' ? initialRegionMeta.zoom : 5.5
+  );
+  const [center, setCenter] = useState<UserLocation>(() =>
+    initialRegion !== 'all' ? initialRegionMeta.center : CHINA_CENTER
+  );
   
 
   // ✅ 新增：年龄验证状态
@@ -172,7 +184,8 @@ const HomePage: React.FC = () => {
   const [previewShop, setPreviewShop] = useState<Shop | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  /** 地图区域筛选（左下角下拉） */
+  const [regionFilter, setRegionFilter] = useState<SocialRegionKey>(initialRegion);
   /** Quick MBTI type chips above map */
   const [selectedMbtiQuick, setSelectedMbtiQuick] = useState<string[]>([]);
   /** Looking-for goal filter */
@@ -307,7 +320,29 @@ const HomePage: React.FC = () => {
     return type ? type.toLowerCase() : null;
   };
 
-  const allTags = MBTI_TYPES.map((t) => t.toLowerCase());
+
+  const applyRegionFilter = useCallback(
+    (key: SocialRegionKey) => {
+      setRegionFilter(key);
+      if (!userLocation && !useNearbyFilter) {
+        const region = getRegionByKey(key);
+        setCenter(region.center);
+        setZoom(region.zoom);
+        setMapPanNonce((n) => n + 1);
+      }
+    },
+    [userLocation, useNearbyFilter]
+  );
+
+  const mapViewportCenter = useMemo(() => {
+    if (userLocation) return userLocation;
+    return getRegionByKey(regionFilter).center;
+  }, [userLocation, regionFilter]);
+
+  const mapViewportZoom = useMemo(() => {
+    if (userLocation) return zoom;
+    return getRegionByKey(regionFilter).zoom;
+  }, [userLocation, regionFilter, zoom]);
 
   const existingShopNamesLower = useMemo(
     () => shops.map((s) => (s.name || '').trim().toLowerCase()).filter(Boolean),
@@ -336,13 +371,9 @@ const HomePage: React.FC = () => {
       });
     }
 
-    // 2. 执行标签过滤（多选：匹配任意一个）
-    if (selectedTags.length > 0) {
-      const targetTags = new Set(selectedTags);
-      result = result.filter((shop) => {
-        const tag = getShopMbtiTag(shop);
-        return tag != null && targetTags.has(tag);
-      });
+    // 2. 区域筛选
+    if (regionFilter !== 'all') {
+      result = result.filter((shop) => shopMatchesRegion(shop, regionFilter));
     }
 
     if (selectedMbtiQuick.length > 0 && !selectedMbtiQuick.includes(MBTI_FILTER_ALL)) {
@@ -405,7 +436,7 @@ const HomePage: React.FC = () => {
     }
 
     return result;
-  }, [shops, useNearbyFilter, userLocation, radiusKm, selectedTags, selectedMbtiQuick, lookingForFilter, selectedShop]);
+  }, [shops, useNearbyFilter, userLocation, radiusKm, regionFilter, selectedMbtiQuick, lookingForFilter, selectedShop]);
 
   // Scrolling Logic
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -804,7 +835,7 @@ const HomePage: React.FC = () => {
     if (useNearbyFilter && userLocation) {
       return UI.noOneNearby(radiusKm);
     }
-    if (selectedTags.length > 0) return UI.noMbtiMatch;
+    if (regionFilter !== 'all') return UI.noRegionMatch;
     if (selectedMbtiQuick.length > 0 && !selectedMbtiQuick.includes(MBTI_FILTER_ALL)) {
       return UI.noMbtiMatch;
     }
@@ -816,7 +847,7 @@ const HomePage: React.FC = () => {
     useNearbyFilter,
     userLocation,
     radiusKm,
-    selectedTags.length,
+    regionFilter,
     selectedMbtiQuick,
     lookingForFilter,
   ]);
@@ -1111,11 +1142,7 @@ const HomePage: React.FC = () => {
       >
         <div className="max-w-7xl mx-auto w-full flex flex-nowrap items-center justify-between gap-1.5 px-1 sm:px-2 py-0 pointer-events-auto">
           <div className="min-w-0 flex-1 flex items-center justify-start">
-            <BadgeFilterDropdown
-              allTags={allTags}
-              selectedTags={selectedTags}
-              onChange={setSelectedTags}
-            />
+            <RegionFilterDropdown value={regionFilter} onChange={applyRegionFilter} />
           </div>
           <div className="shrink-0 flex items-center justify-end">
             <LookingForFilterDropdown value={lookingForFilter} onChange={setLookingForFilter} />
@@ -1136,8 +1163,8 @@ const HomePage: React.FC = () => {
           <Suspense fallback={null}>
             <MapComponent
               shops={filteredShops}
-              center={userLocation || CHINA_CENTER}
-              zoom={zoom}
+              center={mapViewportCenter}
+              zoom={mapViewportZoom}
               selectedShop={selectedShop}
               userLocation={userLocation}
               onMarkerClick={handleMarkerClickStable}
