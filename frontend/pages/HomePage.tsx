@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense, lazy } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import AgeVerificationModal from '../components/AgeVerificationModal';
-import { MBTI_FILTER_ROWS, MBTI_FILTER_ALL, mbtiTypeFromBadge, MBTI_TYPES } from '../constants/mbtiTypes';
+import { MBTI_FILTER_ROWS, MBTI_FILTER_ALL, mbtiTypeFromBadge } from '../constants/mbtiTypes';
 import { UI } from '../constants/i18n';
 import AdminPanel from '../components/AdminPanel';
 import { Shop, UserLocation } from '../types';
