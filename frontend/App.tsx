@@ -1,10 +1,10 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { UI } from './constants/i18n';
 import HamburgerButton from './components/HamburgerButton';
+import HomePage from './pages/HomePage';
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import SidebarMenu from './components/SidebarMenu';
 
-const HomePage = lazy(() => import('./pages/HomePage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const TermsPage = lazy(() => import('./pages/TermsPage'));
 const ShopDetailPage = lazy(() => import('./pages/ShopDetailPage'));

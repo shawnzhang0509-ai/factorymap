@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense, lazy } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import AgeVerificationModal from '../components/AgeVerificationModal';
 import { MBTI_FILTER_ROWS, MBTI_FILTER_ALL, mbtiTypeFromBadge, MBTI_TYPES } from '../constants/mbtiTypes';
 import { UI } from '../constants/i18n';
-import MapComponent from '../components/MapComponent';
-import ShopCard from '../components/ShopCard';
 import AdminPanel from '../components/AdminPanel';
 import { Shop, UserLocation } from '../types';
 import { CHINA_CENTER } from '../constants';
@@ -16,6 +14,13 @@ import BadgeFilterDropdown from '../components/BadgeFilterDropdown';
 import LookingForFilterDropdown from '../components/LookingForFilterDropdown';
 import { profilePassesLookingForFilter, type LookingForKey } from '../constants/socialTags';
 import { getApiBaseUrl } from '../config/api';
+
+const MapComponent = lazy(() => import('../components/MapComponent'));
+const ShopCard = lazy(() => import('../components/ShopCard'));
+
+const FETCH_TIMEOUT_MS = 18000;
+const FETCH_MAX_ATTEMPTS = 3;
+const FETCH_RETRY_DELAY_MS = 2000;
 
 const STORAGE_KEY = 'mbti_social_map_v1';
 const LEGACY_FACTORY_STORAGE_KEYS = ['china_factory_map_v2', 'nz_massage_shops_v1'] as const;
@@ -737,13 +742,15 @@ const HomePage: React.FC = () => {
   };
 
   // Business Logic
-  const fetchShops = async (attempt = 1) => {
-    const MAX_ATTEMPTS = 4;
-    setShopsLoadStatus('loading');
+  const fetchShops = async (attempt = 1, background = false) => {
+    const cached = loadShopsFromStorage(API_BASE_URL);
+    if (!background && cached.length === 0) {
+      setShopsLoadStatus('loading');
+    }
     try {
       const token = localStorage.getItem('auth_token') || '';
       const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 45000);
+      const timeoutId = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
       const response = await fetch(`${API_BASE_URL}/shops`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         signal: controller.signal,
@@ -757,9 +764,7 @@ const HomePage: React.FC = () => {
         setShopsLoadStatus('ready');
         setShopsDataSource('server');
       } else {
-        const cached = loadShopsFromStorage(API_BASE_URL);
         if (cached.length > 0) {
-          console.warn('API returned no profiles — keeping cached listings');
           setShops(cached);
           setShopsLoadStatus('ready');
           setShopsDataSource('cache-stale');
@@ -771,11 +776,10 @@ const HomePage: React.FC = () => {
       }
     } catch (error) {
       console.error('❌ Load failed:', error);
-      if (attempt < MAX_ATTEMPTS) {
-        await new Promise((resolve) => setTimeout(resolve, 8000 * attempt));
-        return fetchShops(attempt + 1);
+      if (attempt < FETCH_MAX_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, FETCH_RETRY_DELAY_MS));
+        return fetchShops(attempt + 1, background || cached.length > 0);
       }
-      const cached = loadShopsFromStorage(API_BASE_URL);
       if (cached.length > 0) {
         setShops(cached);
         setShopsLoadStatus('ready');
@@ -1068,7 +1072,10 @@ const HomePage: React.FC = () => {
       /* ignore */
     }
   }, [shops]);
-  useEffect(() => { fetchShops(); }, []);
+  useEffect(() => {
+    const cached = loadShopsFromStorage(API_BASE_URL);
+    void fetchShops(1, cached.length > 0);
+  }, []);
 
   return (
     <div className="map-app-shell w-full bg-transparent">
@@ -1125,38 +1132,20 @@ const HomePage: React.FC = () => {
         className="flex-1 relative overflow-hidden min-h-0 pt-[calc(env(safe-area-inset-top,0px)+5.45rem)]"
         style={{ paddingBottom: `${drawerHeight}px` }}
       >
-        <div className="absolute inset-0 z-0">
-          <MapComponent
-            shops={filteredShops}
-            center={userLocation || CHINA_CENTER}
-            zoom={zoom}
-            selectedShop={selectedShop}
-            userLocation={userLocation}
-            onMarkerClick={handleMarkerClickStable}
-            radiusKm={useNearbyFilter && userLocation ? radiusKm : 0}
-            mapPanNonce={mapPanNonce}
-          />
+        <div className="absolute inset-0 z-0 map-skeleton">
+          <Suspense fallback={null}>
+            <MapComponent
+              shops={filteredShops}
+              center={userLocation || CHINA_CENTER}
+              zoom={zoom}
+              selectedShop={selectedShop}
+              userLocation={userLocation}
+              onMarkerClick={handleMarkerClickStable}
+              radiusKm={useNearbyFilter && userLocation ? radiusKm : 0}
+              mapPanNonce={mapPanNonce}
+            />
+          </Suspense>
         </div>
-
-        {shopsDataSource !== 'server' && shops.length > 0 && (
-          <div className="absolute left-3 right-3 top-[calc(env(safe-area-inset-top,0px)+6.5rem)] z-[1002] pointer-events-auto">
-            <div className="rounded-xl bg-sky-50 border border-sky-200 px-4 py-3 text-sm text-sky-950 shadow-lg">
-              <p className="font-semibold">{UI.cachedTitle}</p>
-              <p className="mt-1 text-xs opacity-90">
-                {shopsDataSource === 'cache-stale'
-                  ? UI.cachedStale
-                  : UI.cachedOffline}
-              </p>
-              <button
-                type="button"
-                onClick={() => void fetchShops()}
-                className="mt-2 px-3 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-semibold"
-              >
-                {UI.retryFromServer}
-              </button>
-            </div>
-          </div>
-        )}
 
         {shops.length === 0 && shopsLoadStatus === 'error' && (
           <div className="absolute left-3 right-3 top-[calc(env(safe-area-inset-top,0px)+6.5rem)] z-[1002] pointer-events-auto">
@@ -1330,17 +1319,11 @@ const HomePage: React.FC = () => {
       <div
         ref={drawerRef}
         className="map-bottom-drawer flex flex-col touch-manipulation"
-          style={{
-            height: `${drawerHeight}px`,
-            paddingBottom: 'max(4px, env(safe-area-inset-bottom, 0px))',
-            transition: isDraggingDrawer.current ? 'none' : 'height 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
-            borderTopLeftRadius: '24px',
-            borderTopRightRadius: '24px',
-            boxShadow: '0 -6px 28px rgba(0,0,0,0.18), 0 -1px 0 rgba(255,255,255,0.5) inset',
-            background: 'linear-gradient(to top, rgba(255, 130, 90, 0.92), rgba(255, 190, 120, 0.75), rgba(255, 248, 235, 0.55))',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-          }}
+        style={{
+          height: `${drawerHeight}px`,
+          paddingBottom: 'max(4px, env(safe-area-inset-bottom, 0px))',
+          transition: isDraggingDrawer.current ? 'none' : 'height 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
+        }}
           onTouchStart={handleDrawerTouchStart}
           onTouchMove={handleDrawerTouchMove}
           onTouchEnd={handleDrawerTouchEnd}
@@ -1426,6 +1409,7 @@ const HomePage: React.FC = () => {
                               handleCardClick(shop, finalX);
                             }}
                           >
+                            <Suspense fallback={<div className="w-[260px] h-40 rounded-2xl bg-white/60 animate-pulse" />}>
                             <ShopCard
                               shop={shop}
                               isSelected={isSelected}
@@ -1447,6 +1431,7 @@ const HomePage: React.FC = () => {
                               onAutoEditHandled={() => setPendingEditShopId(null)}
                               onEditModalChange={setShopCardEditOpen}
                             />
+                            </Suspense>
                             {isSelected && (
                               <div className="mt-2 text-center text-xs font-bold text-rose-700 bg-white/90 rounded py-1 shadow-sm border border-rose-100 animate-pulse">
                                 {UI.tapAgainDetails}
