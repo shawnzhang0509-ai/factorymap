@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, MapPin, Phone, Upload, X, Check, ExternalLink } from 'lucide-react';
+import { MessageCircle, MapPin, Phone, Upload, X, Check, ExternalLink, Navigation } from 'lucide-react';
 import { Shop, ShopEdit } from '../types';
 import { dmsToDecimal } from '../utils/geoUtils';
 import { getTagStyle } from '../constants';
@@ -10,6 +10,7 @@ import { LOOKING_FOR_OPTIONS, interestsFromField } from '../constants/socialTags
 import { getApiBaseUrl } from '../config/api';
 import { UI } from '../constants/i18n';
 import { SELECTABLE_REGIONS, inferShopRegion, getRegionByKey } from '../constants/filterRegions';
+import { geocodeAddressWithOffset } from '../utils/geocode';
 
 interface ShopCardProps {
   shop: Shop;
@@ -51,6 +52,8 @@ const ShopCard: React.FC<ShopCardProps> = ({
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeMessage, setGeocodeMessage] = useState('');
   const gestureStateRef = useRef<GestureState>('idle');
   const gestureStartRef = useRef<{ x: number; y: number; at: number } | null>(null);
   const blockActionUntilRef = useRef(0);
@@ -176,6 +179,26 @@ const ShopCard: React.FC<ShopCardProps> = ({
     resetGestureMachine();
     setShowConfirmSave(false);
     setIsEditing(false);
+    setGeocodeMessage('');
+  };
+
+  const handleGeocodeFromAddress = async () => {
+    const address = (editData.address || '').trim();
+    if (address.length < 2) {
+      setGeocodeMessage(UI.geocodeFailed);
+      return;
+    }
+    setGeocoding(true);
+    setGeocodeMessage('');
+    try {
+      const result = await geocodeAddressWithOffset(address);
+      setEditData((prev) => ({ ...prev, lat: result.lat, lng: result.lng }));
+      setGeocodeMessage(UI.geocodeSuccess(result.offset_km));
+    } catch (err) {
+      setGeocodeMessage(err instanceof Error ? err.message : UI.geocodeFailed);
+    } finally {
+      setGeocoding(false);
+    }
   };
 
   const runGuardedAction = (event: React.SyntheticEvent, action: () => void) => {
@@ -591,10 +614,22 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
             {/* COORDINATES */}
             <div className="bg-gray-50 p-3 rounded-lg border">
-              <label className="block text-xs font-bold text-gray-500 mb-1">COORDINATES</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">{UI.coordinates}</label>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void handleGeocodeFromAddress();
+                }}
+                disabled={geocoding || !(editData.address || '').trim()}
+                className="mb-2 inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-bold text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+              >
+                <Navigation className="w-3 h-3" />
+                {geocoding ? UI.geocoding : UI.geocodeFromAddress}
+              </button>
               <input
                 type="text"
-                placeholder="Paste from Google Maps..."
+                placeholder={UI.pasteCoords}
                 className="w-full px-3 py-2 text-sm border rounded-lg font-mono bg-white focus:ring-2 focus:ring-blue-500 outline-none"
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => {
@@ -605,12 +640,14 @@ const ShopCard: React.FC<ShopCardProps> = ({
                     const lngNum = parseFloat(parts[1]);
                     if (!isNaN(latNum) && !isNaN(lngNum)) {
                       setEditData({ ...editData, lat: latNum, lng: lngNum });
+                      setGeocodeMessage('');
                       return;
                     }
                     const latDms = dmsToDecimal(parts[0]);
                     const lngDms = dmsToDecimal(parts[1]);
                     if (latDms !== null && lngDms !== null) {
                       setEditData({ ...editData, lat: latDms, lng: lngDms });
+                      setGeocodeMessage('');
                     }
                   }
                 }}
@@ -618,6 +655,9 @@ const ShopCard: React.FC<ShopCardProps> = ({
               <p className="text-[10px] text-gray-400 mt-1 text-right">
                 {editData.lat?.toFixed(4)}, {editData.lng?.toFixed(4)}
               </p>
+              {geocodeMessage ? (
+                <p className="text-[10px] text-green-600 font-semibold mt-1">{geocodeMessage}</p>
+              ) : null}
             </div>
 
             {/* IMAGES */}
