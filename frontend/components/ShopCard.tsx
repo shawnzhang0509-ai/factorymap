@@ -505,7 +505,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
           >
             {/* NAME */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">NAME</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">{UI.displayName}</label>
               <input
                 value={editData.name || ''}
                 onChange={(e) => setEditData({ ...editData, name: e.target.value })}
@@ -710,7 +710,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
             {/* IMAGES */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-2">IMAGES</label>
+              <label className="block text-xs font-bold text-gray-500 mb-2">{UI.photos}</label>
               <label 
                 className="flex items-center justify-center gap-2 w-full py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
                 onClick={(e) => e.stopPropagation()}
