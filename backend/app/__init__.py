@@ -95,6 +95,23 @@ def _ensure_user_ad_manager_column():
         print(f"⚠️ users.is_ad_manager schema check skipped: {e}")
 
 
+def _ensure_user_email_column():
+    try:
+        engine = db.engine
+        insp = inspect(engine)
+        if not insp.has_table("users"):
+            return
+        names = {c["name"] for c in insp.get_columns("users")}
+        if "email" in names:
+            return
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR(255)"))
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email ON users (email)"))
+        print("✅ Added missing column users.email (schema sync)")
+    except Exception as e:
+        print(f"⚠️ users.email schema check skipped: {e}")
+
+
 _LEGACY_PAGE_MARKERS = (
     "massage",
     "therapist",
@@ -205,6 +222,7 @@ def create_app():
     from app.models.association import ShopPicture
     from app.models.click_stat import ClickStat  # <--- 新增这一行
     from app.models.user import User
+    from app.models.email_otp import EmailOtp  # noqa: F401 — register table
     from app.models.shop_owner import ShopOwner
     from app.models.site_page import SitePage  # noqa: F401 — register table
 
@@ -238,6 +256,7 @@ def create_app():
         _ensure_shop_main_product_column()
         _ensure_shop_social_columns()
         _ensure_user_ad_manager_column()
+        _ensure_user_email_column()
         _migrate_legacy_site_pages()
         _maybe_purge_factory_data_once()
         _auto_purge_legacy_factory_import_once()
