@@ -182,6 +182,7 @@ const HomePage: React.FC = () => {
   const [isAdmin, setIsAdmin] = useState(() => typeof window !== 'undefined' && localStorage.getItem('is_admin') === 'true');
   const [isAdManager, setIsAdManager] = useState(() => typeof window !== 'undefined' && localStorage.getItem('is_ad_manager') === 'true');
   const canManageAllAds = isAdmin || isAdManager;
+  const [hasOwnProfile, setHasOwnProfile] = useState(false);
 
   const [previewShop, setPreviewShop] = useState<Shop | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
@@ -932,12 +933,14 @@ const HomePage: React.FC = () => {
     localStorage.setItem('is_admin', adminFlag ? 'true' : 'false');
     localStorage.setItem('is_ad_manager', managerFlag ? 'true' : 'false');
     window.dispatchEvent(new Event('auth_changed'));
+    void refreshMyProfileStatus(token);
   };
   const handleLogout = () => {
     setIsLoggedIn(false);
     setUsername(null);
     setIsAdmin(false);
     setIsAdManager(false);
+    setHasOwnProfile(false);
     localStorage.removeItem("admin_logged_in");
     localStorage.removeItem('admin_username');
     localStorage.removeItem('auth_token');
@@ -1051,12 +1054,35 @@ const HomePage: React.FC = () => {
     );
   };
 
+  const refreshMyProfileStatus = useCallback(async (tokenOverride?: string) => {
+    const token = tokenOverride || localStorage.getItem('auth_token') || '';
+    if (!token) {
+      setHasOwnProfile(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE_URL}/shop/mine`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        setHasOwnProfile(false);
+        return;
+      }
+      const data = await res.json();
+      setHasOwnProfile(Array.isArray(data) && data.length > 0);
+    } catch {
+      setHasOwnProfile(false);
+    }
+  }, [API_BASE_URL]);
+
   const handleAddShop = (newShop: Shop) => {
     if (shops.some(s => s.name.trim().toLowerCase() === newShop.name.trim().toLowerCase())) {
       alert(`资料「${newShop.name}」已存在`);
       return;
     }
-    setShops([...shops, newShop]); setShowCreateAd(false);
+    setShops([...shops, { ...newShop, can_edit: true }]);
+    setShowCreateAd(false);
+    setHasOwnProfile(true);
     const slug = newShop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     navigate(`/shop/${slug}`);
   };
@@ -1090,15 +1116,23 @@ const HomePage: React.FC = () => {
       setShowLogin(true);
       return;
     }
-    if (!canManageAllAds) {
-      alert(UI.moderatorOnly);
+    if (!canManageAllAds && hasOwnProfile) {
+      alert(UI.alreadyHasProfile);
+      navigate('/my-ads');
       return;
     }
     setShowCreateAd(true);
   };
 
   useEffect(() => {
-    if (shops.length === 0) return;
+    if (!isLoggedIn) {
+      setHasOwnProfile(false);
+      return;
+    }
+    void refreshMyProfileStatus();
+  }, [isLoggedIn, refreshMyProfileStatus]);
+
+  useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(shops));
     } catch {
@@ -1308,7 +1342,15 @@ const HomePage: React.FC = () => {
           type="button"
           onClick={handleCreateAdClick}
           className="p-3 bg-white text-rose-500 rounded-full shadow-lg"
-          title={!isLoggedIn ? UI.loginToManage : (canManageAllAds ? UI.addProfile : UI.moderatorOnly)}
+          title={
+            !isLoggedIn
+              ? UI.loginToManage
+              : canManageAllAds
+                ? UI.addProfile
+                : hasOwnProfile
+                  ? UI.myProfile
+                  : UI.addMyProfile
+          }
         >
           <Plus className="w-6 h-6" />
         </button>

@@ -87,6 +87,8 @@ export const UI = {
   geoFailed: '定位失败，请检查权限或稍后重试',
   searchFailed: '搜索失败',
   moderatorOnly: '仅管理员可添加资料，请联系管理员。',
+  alreadyHasProfile: '你已有一个资料，请到「我的资料」编辑。',
+  addMyProfile: '添加我的资料',
   loginToManage: '登录后管理资料',
   showAllProfiles: '显示所有人',
   cachedTitle: '当前仅显示本机缓存数据',

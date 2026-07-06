@@ -50,14 +50,16 @@ def _editable_shop_ids(user):
 def _sanitize_shop_payload_for_role(data, user):
     """
     Enforce admin-only editable fields.
-    Non-admin users cannot set or update badge-related fields.
+    Regular users may set MBTI (badge_text) and region (filter_city) on their profile.
     """
     cleaned = dict(data or {})
     if not _can_manage_all_shops(user):
-        cleaned.pop("badge_text", None)
         cleaned.pop("new_girls_last_15_days", None)
-        cleaned.pop("filter_city", None)
     return cleaned
+
+
+def _user_owned_shop_count(user_id: int) -> int:
+    return ShopOwner.query.filter_by(user_id=user_id).count()
 
 @shop_bp.route('/search', methods=['GET'])
 @shop_bp.route('/shop/search', methods=['GET'])
@@ -80,8 +82,8 @@ def add_shop():
     auth_user = _require_auth_user()
     if not auth_user:
         return jsonify({"error": "Unauthorized"}), 401
-    if not _can_manage_all_shops(auth_user):
-        return jsonify({"error": "Only admin or ad manager can create new ads"}), 403
+    if not _can_manage_all_shops(auth_user) and _user_owned_shop_count(auth_user.id) >= 1:
+        return jsonify({"error": "你已有一个资料，请编辑现有资料"}), 409
 
     data = _sanitize_shop_payload_for_role(request.form.to_dict(), auth_user)
     files = request.files.getlist("pictures")
@@ -96,7 +98,9 @@ def add_shop():
         db.session.commit()
 
     # ✅ 修改：直接调用 to_dict()
-    return jsonify(shop.to_dict())
+    payload = shop.to_dict()
+    payload["can_edit"] = True
+    return jsonify(payload)
 
 
 @shop_bp.route("/bulk-import-template", methods=["GET"])
