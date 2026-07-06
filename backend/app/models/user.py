@@ -1,4 +1,7 @@
 from datetime import datetime
+import re
+import secrets
+from typing import Optional
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from flask import current_app
@@ -10,6 +13,7 @@ class User(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False, index=True)
+    email = db.Column(db.String(255), unique=True, nullable=True, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     is_ad_manager = db.Column(db.Boolean, default=False, nullable=False)
@@ -50,6 +54,46 @@ class User(db.Model):
         return {
             "id": self.id,
             "username": self.username,
+            "email": self.email,
             "is_admin": self.is_admin,
             "is_ad_manager": self.is_ad_manager,
         }
+
+    @staticmethod
+    def normalize_email(raw: str) -> Optional[str]:
+        email = (raw or "").strip().lower()
+        if not email or "@" not in email or len(email) > 255:
+            return None
+        return email
+
+    @classmethod
+    def find_by_email(cls, email: str):
+        return db.session.query(cls).filter(cls.email == email).first()
+
+    @classmethod
+    def username_from_email(cls, email: str) -> str:
+        local = email.split("@", 1)[0]
+        base = re.sub(r"[^a-zA-Z0-9_\-]", "", local)[:40] or "user"
+        candidate = base
+        n = 1
+        while db.session.query(cls.id).filter(cls.username == candidate).first():
+            suffix = str(n)
+            candidate = f"{base[: max(1, 40 - len(suffix))]}{suffix}"
+            n += 1
+        return candidate
+
+    @classmethod
+    def get_or_create_by_email(cls, email: str):
+        user = cls.find_by_email(email)
+        if user:
+            return user, False
+        user = cls(
+            username=cls.username_from_email(email),
+            email=email,
+            is_admin=False,
+            is_ad_manager=False,
+        )
+        user.set_password(secrets.token_urlsafe(32))
+        db.session.add(user)
+        db.session.commit()
+        return user, True

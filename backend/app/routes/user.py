@@ -1,10 +1,16 @@
 from functools import wraps
+import re
+
 from flask import Blueprint, request, jsonify, current_app
 
 from app import db
 from app.models.user import User
+from app.models.email_otp import EmailOtp
+from app.services.email_service import send_login_code_email
 
 user_bp = Blueprint('user', __name__)
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def require_auth(func):
@@ -98,3 +104,59 @@ def login():
 def me():
     user = request.current_user
     return jsonify({"success": True, "user": user.to_dict()})
+
+
+@user_bp.route('/auth/email/send-code', methods=['POST'])
+def send_email_code():
+    data = request.get_json() or {}
+    email = User.normalize_email(data.get("email") or "")
+    if not email or not _EMAIL_RE.match(email):
+        return jsonify({"success": False, "error": "请输入有效邮箱"}), 400
+
+    max_per_hour = int(current_app.config.get("OTP_MAX_REQUESTS_PER_HOUR", 5))
+    if EmailOtp.recent_request_count(email) >= max_per_hour:
+        return jsonify({"success": False, "error": "发送太频繁，请稍后再试"}), 429
+
+    ttl = int(current_app.config.get("OTP_EXPIRY_SECONDS", 600))
+    code = EmailOtp.issue(email, ttl_seconds=ttl)
+
+    try:
+        send_login_code_email(email, code)
+    except Exception as exc:
+        current_app.logger.exception("send_login_code_email failed")
+        return jsonify({"success": False, "error": "验证码发送失败，请稍后重试"}), 500
+
+    return jsonify({
+        "success": True,
+        "message": "验证码已发送，请查收邮箱（含垃圾箱）",
+        "expires_in": ttl,
+    })
+
+
+@user_bp.route('/auth/email/verify', methods=['POST'])
+def verify_email_code():
+    data = request.get_json() or {}
+    email = User.normalize_email(data.get("email") or "")
+    code = (data.get("code") or "").strip()
+
+    if not email or not _EMAIL_RE.match(email):
+        return jsonify({"success": False, "error": "请输入有效邮箱"}), 400
+    if not re.fullmatch(r"\d{6}", code):
+        return jsonify({"success": False, "error": "请输入 6 位数字验证码"}), 400
+
+    otp = (
+        db.session.query(EmailOtp)
+        .filter(EmailOtp.email == email)
+        .order_by(EmailOtp.created_at.desc())
+        .first()
+    )
+    if not otp or not otp.verify(code):
+        return jsonify({"success": False, "error": "验证码错误或已过期"}), 401
+
+    user, _created = User.get_or_create_by_email(email)
+    token = user.issue_access_token()
+    return jsonify({
+        "success": True,
+        "token": token,
+        "user": user.to_dict(),
+    })
