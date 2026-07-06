@@ -112,6 +112,30 @@ def _ensure_user_email_column():
         print(f"⚠️ users.email schema check skipped: {e}")
 
 
+def _ensure_user_has_password_column():
+    try:
+        engine = db.engine
+        insp = inspect(engine)
+        if not insp.has_table("users"):
+            return
+        names = {c["name"] for c in insp.get_columns("users")}
+        if "has_password" in names:
+            return
+        with engine.begin() as conn:
+            conn.execute(
+                text("ALTER TABLE users ADD COLUMN has_password BOOLEAN NOT NULL DEFAULT false")
+            )
+            conn.execute(
+                text(
+                    "UPDATE users SET has_password = true "
+                    "WHERE email IS NULL OR is_admin = true"
+                )
+            )
+        print("✅ Added missing column users.has_password (schema sync)")
+    except Exception as e:
+        print(f"⚠️ users.has_password schema check skipped: {e}")
+
+
 _LEGACY_PAGE_MARKERS = (
     "massage",
     "therapist",
@@ -257,6 +281,7 @@ def create_app():
         _ensure_shop_social_columns()
         _ensure_user_ad_manager_column()
         _ensure_user_email_column()
+        _ensure_user_has_password_column()
         _migrate_legacy_site_pages()
         _maybe_purge_factory_data_once()
         _auto_purge_legacy_factory_import_once()
