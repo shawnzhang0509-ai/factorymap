@@ -15,6 +15,7 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False, index=True)
     email = db.Column(db.String(255), unique=True, nullable=True, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
+    has_password = db.Column(db.Boolean, default=False, nullable=False)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     is_ad_manager = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -55,6 +56,7 @@ class User(db.Model):
             "id": self.id,
             "username": self.username,
             "email": self.email,
+            "has_password": bool(self.has_password),
             "is_admin": self.is_admin,
             "is_ad_manager": self.is_ad_manager,
         }
@@ -90,6 +92,7 @@ class User(db.Model):
         user = cls(
             username=cls.username_from_email(email),
             email=email,
+            has_password=False,
             is_admin=False,
             is_ad_manager=False,
         )

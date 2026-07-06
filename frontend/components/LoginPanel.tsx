@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Lock, Mail } from 'lucide-react';
+import { X, Lock, Mail, KeyRound } from 'lucide-react';
 import { getApiBaseUrl } from '../config/api';
 import { UI } from '../constants/i18n';
 
@@ -8,7 +8,18 @@ interface LoginModalProps {
   onClose: () => void;
 }
 
-type LoginMode = 'email' | 'password';
+type LoginStep = 'otp' | 'set-password' | 'email-password' | 'admin-password';
+
+type AuthPayload = {
+  token?: string;
+  user?: {
+    username?: string;
+    email?: string;
+    is_admin?: boolean;
+    is_ad_manager?: boolean;
+    has_password?: boolean;
+  };
+};
 
 function persistLogin(data: {
   token: string;
@@ -25,17 +36,21 @@ function persistLogin(data: {
 }
 
 const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
-  const [mode, setMode] = useState<LoginMode>('email');
+  const [step, setStep] = useState<LoginStep>('otp');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
-  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [pendingAuth, setPendingAuth] = useState<AuthPayload | null>(null);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -43,9 +58,10 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
     return () => window.clearTimeout(timer);
   }, [cooldown]);
 
-  const finishLogin = (data: { token?: string; user?: { username?: string; is_admin?: boolean; is_ad_manager?: boolean } }) => {
+  const finishLogin = (data: AuthPayload) => {
     const token = data.token || '';
-    const resolvedUsername = data.user?.username || email.split('@')[0] || UI.unknown;
+    const resolvedUsername =
+      data.user?.email || data.user?.username || email.split('@')[0] || UI.unknown;
     const isAdmin = !!data.user?.is_admin;
     const isAdManager = !!data.user?.is_ad_manager;
     persistLogin({ token, username: resolvedUsername, isAdmin, isAdManager });
@@ -102,6 +118,13 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
         setError(data.error || UI.codeInvalid);
         return;
       }
+      if (data.needs_password) {
+        setPendingAuth(data);
+        setPassword('');
+        setConfirmPassword('');
+        setStep('set-password');
+        return;
+      }
       finishLogin(data);
     } catch (err) {
       console.error('Verify code error:', err);
@@ -111,7 +134,75 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
     }
   };
 
-  const handlePasswordLogin = async (e: React.FormEvent) => {
+  const handleSetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (password.length < 6) {
+      setError(UI.passwordMinHint);
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError(UI.passwordMismatch);
+      return;
+    }
+    const token = pendingAuth?.token || '';
+    if (!token) {
+      setError(UI.setPasswordFailed);
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      const API_BASE_URL = getApiBaseUrl();
+      const res = await fetch(`${API_BASE_URL}/auth/set-password`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password, confirm_password: confirmPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error || UI.setPasswordFailed);
+        return;
+      }
+      finishLogin({
+        token,
+        user: data.user || pendingAuth?.user,
+      });
+    } catch (err) {
+      console.error('Set password error:', err);
+      setError(UI.setPasswordFailed);
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
+  const handleEmailPasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setInfo('');
+    try {
+      const API_BASE_URL = getApiBaseUrl();
+      const res = await fetch(`${API_BASE_URL}/auth/email/login`, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error || UI.emailPasswordInvalid);
+        return;
+      }
+      finishLogin(data);
+    } catch (err) {
+      console.error('Email password login error:', err);
+      setError(UI.loginFailed);
+    }
+  };
+
+  const handleAdminPasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setInfo('');
@@ -120,7 +211,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
       const res = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uname: username, pwd: password }),
+        body: JSON.stringify({ uname: username, pwd: adminPassword }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -134,21 +225,35 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
     }
   };
 
+  const titleIcon =
+    step === 'set-password' ? (
+      <KeyRound className="w-5 h-5 text-violet-500" />
+    ) : step === 'admin-password' ? (
+      <Lock className="w-5 h-5 text-rose-500" />
+    ) : (
+      <Mail className="w-5 h-5 text-violet-500" />
+    );
+
+  const titleText =
+    step === 'set-password' ? UI.setPasswordTitle : UI.login;
+
   return (
     <div className="fixed inset-0 z-[3000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl">
         <div className="p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold flex items-center gap-2">
-              {mode === 'email' ? <Mail className="w-5 h-5 text-violet-500" /> : <Lock className="w-5 h-5 text-rose-500" />}
-              {UI.login}
+              {titleIcon}
+              {titleText}
             </h2>
-            <button onClick={onClose} className="hover:text-gray-500">
-              <X className="w-5 h-5" />
-            </button>
+            {step !== 'set-password' && (
+              <button onClick={onClose} className="hover:text-gray-500">
+                <X className="w-5 h-5" />
+              </button>
+            )}
           </div>
 
-          {mode === 'email' ? (
+          {step === 'otp' && (
             <form onSubmit={handleVerifyCode} className="space-y-4">
               <p className="text-xs text-gray-500 leading-relaxed">{UI.emailLoginHint}</p>
               <input
@@ -195,15 +300,109 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
                 onClick={() => {
                   setError('');
                   setInfo('');
-                  setMode('password');
+                  setPassword('');
+                  setStep('email-password');
                 }}
                 className="w-full text-sm text-gray-600 hover:text-gray-800 underline"
+              >
+                {UI.emailPasswordLogin}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setError('');
+                  setInfo('');
+                  setStep('admin-password');
+                }}
+                className="w-full text-xs text-gray-400 hover:text-gray-600 underline"
               >
                 {UI.adminPasswordLogin}
               </button>
             </form>
-          ) : (
-            <form onSubmit={handlePasswordLogin} className="space-y-4">
+          )}
+
+          {step === 'set-password' && (
+            <form onSubmit={handleSetPassword} className="space-y-4">
+              <p className="text-xs text-gray-500 leading-relaxed">{UI.setPasswordHint}</p>
+              <p className="text-sm font-semibold text-violet-700">{email || pendingAuth?.user?.email}</p>
+              <input
+                type="password"
+                autoComplete="new-password"
+                placeholder={UI.setPassword}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                required
+                minLength={6}
+              />
+              <input
+                type="password"
+                autoComplete="new-password"
+                placeholder={UI.confirmPassword}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                required
+                minLength={6}
+              />
+              <p className="text-[11px] text-gray-400">{UI.passwordMinHint}</p>
+              {error && <p className="text-rose-500 text-xs">{error}</p>}
+              <button
+                type="submit"
+                disabled={savingPassword || password.length < 6}
+                className="w-full bg-violet-600 text-white py-3 rounded-xl font-bold hover:bg-violet-700 transition disabled:opacity-60"
+              >
+                {savingPassword ? UI.loading : UI.setPassword}
+              </button>
+            </form>
+          )}
+
+          {step === 'email-password' && (
+            <form onSubmit={handleEmailPasswordLogin} className="space-y-4">
+              <p className="text-xs text-gray-500 leading-relaxed">{UI.emailPasswordHint}</p>
+              <input
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                placeholder={UI.emailPlaceholder}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                required
+              />
+              <input
+                type="password"
+                autoComplete="current-password"
+                placeholder={UI.password}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                required
+                minLength={6}
+              />
+              {error && <p className="text-rose-500 text-xs">{error}</p>}
+              <button
+                type="submit"
+                className="w-full bg-violet-600 text-white py-3 rounded-xl font-bold hover:bg-violet-700 transition"
+              >
+                {UI.login}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setError('');
+                  setPassword('');
+                  setStep('otp');
+                }}
+                className="w-full text-sm text-gray-600 hover:text-gray-800 underline"
+              >
+                {UI.backToEmailLogin}
+              </button>
+            </form>
+          )}
+
+          {step === 'admin-password' && (
+            <form onSubmit={handleAdminPasswordLogin} className="space-y-4">
               <input
                 placeholder={UI.username}
                 value={username}
@@ -214,8 +413,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
               <input
                 type="password"
                 placeholder={UI.password}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-rose-500"
                 required
               />
@@ -230,8 +429,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
                 type="button"
                 onClick={() => {
                   setError('');
-                  setInfo('');
-                  setMode('email');
+                  setStep('otp');
                 }}
                 className="w-full text-sm text-gray-600 hover:text-gray-800 underline"
               >

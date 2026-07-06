@@ -41,6 +41,7 @@ def _ensure_default_admin():
     admin_user = User(
         username=default_admin_username,
         is_admin=True,
+        has_password=True,
     )
     admin_user.set_password(default_admin_password)
     db.session.add(admin_user)
@@ -63,6 +64,7 @@ def register():
 
     user = User(username=uname, is_admin=False)
     user.is_ad_manager = False
+    user.has_password = True
     user.set_password(pwd)
     db.session.add(user)
     db.session.commit()
@@ -153,10 +155,59 @@ def verify_email_code():
     if not otp or not otp.verify(code):
         return jsonify({"success": False, "error": "验证码错误或已过期"}), 401
 
-    user, _created = User.get_or_create_by_email(email)
+    user, created = User.get_or_create_by_email(email)
+    token = user.issue_access_token()
+    needs_password = bool(email and not user.has_password and not user.is_admin)
+    return jsonify({
+        "success": True,
+        "token": token,
+        "user": user.to_dict(),
+        "needs_password": needs_password,
+        "created": created,
+    })
+
+
+@user_bp.route('/auth/email/login', methods=['POST'])
+def email_password_login():
+    data = request.get_json() or {}
+    email = User.normalize_email(data.get("email") or "")
+    pwd = (data.get("password") or "").strip()
+
+    if not email or not _EMAIL_RE.match(email):
+        return jsonify({"success": False, "error": "请输入有效邮箱"}), 400
+    if len(pwd) < 6:
+        return jsonify({"success": False, "error": "密码至少 6 位"}), 400
+
+    user = User.find_by_email(email)
+    if not user or not user.has_password or not user.check_password(pwd):
+        return jsonify({"success": False, "error": "邮箱或密码错误，或尚未设置密码"}), 401
+
     token = user.issue_access_token()
     return jsonify({
         "success": True,
         "token": token,
+        "user": user.to_dict(),
+    })
+
+
+@user_bp.route('/auth/set-password', methods=['POST'])
+@require_auth
+def set_password():
+    data = request.get_json() or {}
+    pwd = (data.get("password") or "").strip()
+    confirm = (data.get("confirm_password") or data.get("confirm") or "").strip()
+
+    if len(pwd) < 6:
+        return jsonify({"success": False, "error": "密码至少 6 位"}), 400
+    if pwd != confirm:
+        return jsonify({"success": False, "error": "两次输入的密码不一致"}), 400
+
+    user = request.current_user
+    user.set_password(pwd)
+    user.has_password = True
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
         "user": user.to_dict(),
     })
