@@ -1,5 +1,5 @@
-/** Production Render backend — used when VITE_API_BASE_URL is missing on Vercel builds. */
-export const PRODUCTION_API_BASE_URL = 'https://factorymap.onrender.com';
+/** Factory-map production API (separate Render service — see deploy/factorymap-online.md). */
+export const PRODUCTION_API_BASE_URL = 'https://factorymap-factory.onrender.com';
 
 /**
  * Resolve API base URL for fetch calls.
