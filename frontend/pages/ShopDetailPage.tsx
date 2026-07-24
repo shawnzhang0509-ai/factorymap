@@ -7,7 +7,6 @@ import { ArrowLeft, MapPin, Phone, ExternalLink, Share2, Info, DollarSign } from
 import ImageGallery from '../components/ImageGallery'; 
 
 import { getApiBaseUrl } from '../config/api';
-import { UI } from '../constants/i18n';
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -19,13 +18,13 @@ const ShopDetailPage: React.FC = () => {
 
   const handleShare = async () => {
     const currentUrl = window.location.href;
-    const shopName = shop?.name || UI.thisProfile;
+    const shopName = shop?.name || 'This factory';
 
     if (navigator.share) {
       try {
         await navigator.share({
           title: shopName,
-          text: UI.shareProfile(shopName),
+          text: `View ${shopName} on China Factory Map — verified supplier profile.`,
           url: currentUrl,
         });
         return; 
@@ -36,7 +35,7 @@ const ShopDetailPage: React.FC = () => {
 
     try {
       await navigator.clipboard.writeText(currentUrl);
-      alert(UI.linkCopiedShort);
+      alert('✅ Link copied to clipboard!');
     } catch (err) {
       const textarea = document.createElement('textarea');
       textarea.value = currentUrl;
@@ -44,7 +43,7 @@ const ShopDetailPage: React.FC = () => {
       textarea.select();
       document.execCommand('copy');
       document.body.removeChild(textarea);
-      alert(UI.linkCopiedShort);
+      alert('✅ Link copied!');
     }
   };
 
@@ -112,7 +111,7 @@ const ShopDetailPage: React.FC = () => {
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-rose-500 font-bold text-lg animate-pulse">{UI.loading}</div>
+        <div className="text-rose-500 font-bold text-lg animate-pulse">Loading details...</div>
       </div>
     );
   }
@@ -120,9 +119,9 @@ const ShopDetailPage: React.FC = () => {
   if (!shop) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
-        <h2 className="text-xl font-bold text-gray-800 mb-2">{UI.profileNotFound}</h2>
-        <p className="text-gray-500 mb-4">该资料不存在或已被删除。</p>
-        <button onClick={() => navigate('/')} className="mt-4 px-6 py-2 bg-rose-500 text-white rounded-full font-bold text-sm hover:bg-rose-600 transition">{UI.backToMap}</button>
+        <h2 className="text-xl font-bold text-gray-800 mb-2">Factory not found</h2>
+        <p className="text-gray-500 mb-4">The factory you are looking for does not exist or has been removed.</p>
+        <button onClick={() => navigate('/')} className="mt-4 px-6 py-2 bg-rose-500 text-white rounded-full font-bold text-sm hover:bg-rose-600 transition">Back to Map</button>
       </div>
     );
   }
@@ -138,7 +137,7 @@ const ShopDetailPage: React.FC = () => {
         <button 
           onClick={handleShare} 
           className="p-2 -mr-2 hover:bg-gray-100 rounded-full transition active:scale-95"
-          aria-label="Share this profile"
+          aria-label="Share this factory"
         >
           <Share2 size={20} className="text-gray-500" />
         </button>
@@ -161,13 +160,13 @@ const ShopDetailPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 mb-1">{shop.name}</h1>
           {shop.main_product?.trim() ? (
             <p className="text-sm font-semibold text-slate-600 mb-4">
-              {UI.interests}：<span className="text-slate-900">{shop.main_product.trim()}</span>
+              Main product: <span className="text-slate-900">{shop.main_product.trim()}</span>
             </p>
           ) : null}
 
           <div className="flex items-center gap-2 mb-6">
-            <span className="text-xs font-bold text-violet-700 bg-violet-50 border border-violet-100 rounded-full px-3 py-1">
-              {shop.badge_text?.trim() || UI.mbtiType}
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1">
+              Verified supplier listing
             </span>
           </div>
 
@@ -176,8 +175,8 @@ const ShopDetailPage: React.FC = () => {
               <div className="p-2 bg-white rounded-full shadow-sm text-rose-500">
                 <MapPin size={20} />
               </div>
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{UI.location}</span>
-              <p className="text-sm text-gray-700 line-clamp-2 leading-tight font-medium">{shop.address || '暂无地址'}</p>
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Location</span>
+              <p className="text-sm text-gray-700 line-clamp-2 leading-tight font-medium">{shop.address || 'Address not available'}</p>
             </div>
             
             {shop.phone && (
@@ -185,7 +184,7 @@ const ShopDetailPage: React.FC = () => {
                 <a href={`tel:${shop.phone}`} className="p-2 bg-white rounded-full shadow-sm text-rose-500 w-fit">
                   <Phone size={20} />
                 </a>
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{UI.phone}</span>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Call supplier</span>
                 <p className="text-sm text-gray-700 font-bold">{shop.phone}</p>
               </div>
             )}
@@ -195,7 +194,7 @@ const ShopDetailPage: React.FC = () => {
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-2">
                 <Info size={18} className="text-rose-500" />
-                <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide">{UI.aboutMe}</h3>
+                <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide">Factory profile</h3>
               </div>
               <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-line bg-rose-50/50 p-4 rounded-2xl border border-rose-100">
                 {shop.about_me}
@@ -203,31 +202,11 @@ const ShopDetailPage: React.FC = () => {
             </div>
           )}
 
-          {(shop.social_xhs?.trim() || shop.social_bilibili?.trim()) && (
-            <div className="mb-6">
-              <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide mb-3">{UI.socialMedia}</h3>
-              <div className="space-y-2">
-                {shop.social_xhs?.trim() ? (
-                  <div className="flex items-center justify-between gap-3 bg-pink-50/60 border border-pink-100 rounded-xl px-4 py-3">
-                    <span className="text-xs font-bold text-pink-700">{UI.xiaohongshu}</span>
-                    <span className="text-sm text-gray-800 font-medium truncate">{shop.social_xhs.trim()}</span>
-                  </div>
-                ) : null}
-                {shop.social_bilibili?.trim() ? (
-                  <div className="flex items-center justify-between gap-3 bg-sky-50/60 border border-sky-100 rounded-xl px-4 py-3">
-                    <span className="text-xs font-bold text-sky-700">{UI.bilibili}</span>
-                    <span className="text-sm text-gray-800 font-medium truncate">{shop.social_bilibili.trim()}</span>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          )}
-
           {shop.additional_price && (
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-2">
                 <DollarSign size={18} className="text-green-600" />
-                <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide">{UI.lookingFor}</h3>
+                <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide">Commercial terms</h3>
               </div>
               <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line bg-green-50/50 p-4 rounded-2xl border border-green-100 font-medium">
                 {shop.additional_price}
@@ -249,13 +228,13 @@ const ShopDetailPage: React.FC = () => {
             className="w-full py-4 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800 transition shadow-lg flex items-center justify-center gap-2 active:scale-95 transform duration-100 text-sm uppercase tracking-wide"
           >
             <MapPin size={18} />
-            <span>在地图上查看</span>
+            <span>View on Map</span>
             <ExternalLink size={16} className="opacity-70" />
           </button>
           
           <div className="mt-4 text-center">
              <button onClick={() => navigate('/')} className="text-xs text-gray-400 hover:text-gray-600 font-medium underline">
-               {UI.backToMap}
+               Back to Browse
              </button>
           </div>
         </div>

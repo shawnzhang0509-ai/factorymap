@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import AgeVerificationModal from '../components/AgeVerificationModal';
-import { MBTI_FILTER_ROWS, MBTI_FILTER_ALL, mbtiTypeFromBadge } from '../constants/mbtiTypes';
-import { UI } from '../constants/i18n';
+import { REGION_FILTER_OPTIONS } from '../constants/filterRegions';
+import MapComponent from '../components/MapComponent';
+import ShopCard from '../components/ShopCard';
 import AdminPanel from '../components/AdminPanel';
 import { Shop, UserLocation } from '../types';
 import { CHINA_CENTER } from '../constants';
@@ -10,34 +11,24 @@ import { calculateDistance } from '../utils';
 import LoginPanel from '../components/LoginPanel';
 import ImagePreviewModal from '../components/ImagePreviewPanel';
 import { Plus, Navigation, Filter, Share2, Search, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
-import RegionFilterDropdown from '../components/RegionFilterDropdown';
-import LookingForFilterDropdown from '../components/LookingForFilterDropdown';
-import { profilePassesLookingForFilter, type LookingForKey } from '../constants/socialTags';
-import {
-  getRegionByKey,
-  loadStoredDefaultRegion,
-  shopMatchesRegion,
-  type SocialRegionKey,
-} from '../constants/filterRegions';
+import BadgeFilterDropdown from '../components/BadgeFilterDropdown';
+import MinSpendFilterDropdown from '../components/MinSpendFilterDropdown';
+import { parseMinSpend } from '../constants/minSpend';
+import { credentialIdsFromBadgeText, FACTORY_CREDENTIAL_IDS } from '../constants/factoryCredentials';
+import type { MoqFilterKey } from '../constants/moqTiers';
+import { shopPassesMoqFilter } from '../constants/moqTiers';
 import { getApiBaseUrl } from '../config/api';
 
-const MapComponent = lazy(() => import('../components/MapComponent'));
-const ShopCard = lazy(() => import('../components/ShopCard'));
-
-const FETCH_TIMEOUT_MS = 18000;
-const FETCH_MAX_ATTEMPTS = 3;
-const FETCH_RETRY_DELAY_MS = 2000;
-
-const STORAGE_KEY = 'mbti_social_map_v1';
-const LEGACY_FACTORY_STORAGE_KEYS = ['china_factory_map_v2', 'nz_massage_shops_v1'] as const;
-const SHARE_TOOLTIP_SEEN_KEY = 'mbti_social_share_tip_v1';
+const STORAGE_KEY = 'china_factory_map_v2';
+const LEGACY_STORAGE_KEY = 'nz_massage_shops_v1';
+const SHARE_TOOLTIP_SEEN_KEY = 'china_factory_share_tip_v1';
 /** Session only: show location FAB hint again on new visit / new tab */
-const LOCATION_FAB_TIP_DISMISSED_KEY = 'mbti_social_loc_tip_session';
-const TERMS_ACCEPTED_KEY = 'mbti_social_map_terms_v1';
+const LOCATION_FAB_TIP_DISMISSED_KEY = 'china_factory_loc_tip_session';
+const TERMS_ACCEPTED_KEY = 'china_factory_map_terms_v1';
 const LEGACY_TERMS_KEY = 'age_verified';
 const API_BASE_URL = getApiBaseUrl();
 
-/** Align list payload with UI: picture URLs, MBTI type, interests */
+/** Align list payload with UI: picture URLs, MOQ tier, main product */
 function normalizeShopFromApi(shop: any, apiBase: string): Shop {
   const pictures =
     shop.pictures?.map((pic: any) => ({
@@ -47,23 +38,20 @@ function normalizeShopFromApi(shop: any, apiBase: string): Shop {
   const rawBadge = shop.badge_text;
   const badge_text =
     rawBadge != null && String(rawBadge).trim() !== '' ? String(rawBadge).trim() : '';
+  const minSpend = parseMinSpend(shop.min_spend);
   return {
     ...shop,
     pictures,
     badge_text,
     filter_city: shop.filter_city || '',
-    min_spend: typeof shop.min_spend === 'number' ? shop.min_spend : undefined,
+    min_spend: minSpend ?? undefined,
     main_product: shop.main_product || '',
-    social_xhs: shop.social_xhs || '',
-    social_bilibili: shop.social_bilibili || '',
-    about_me: shop.about_me || '',
-    additional_price: shop.additional_price || '',
   };
 }
 
 function loadShopsFromStorage(apiBase: string): Shop[] {
   if (typeof window === 'undefined') return [];
-  const keys = [STORAGE_KEY, ...LEGACY_FACTORY_STORAGE_KEYS];
+  const keys = [STORAGE_KEY, LEGACY_STORAGE_KEY];
   for (const key of keys) {
     const saved = localStorage.getItem(key);
     if (!saved) continue;
@@ -71,9 +59,10 @@ function loadShopsFromStorage(apiBase: string): Shop[] {
       const parsed = JSON.parse(saved) as unknown;
       if (!Array.isArray(parsed) || parsed.length === 0) continue;
       const shops = parsed.map((s) => normalizeShopFromApi(s, apiBase));
-      if (key !== STORAGE_KEY) {
+      if (key === LEGACY_STORAGE_KEY) {
         try {
-          localStorage.removeItem(key);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(shops));
+          localStorage.removeItem(LEGACY_STORAGE_KEY);
         } catch {
           /* ignore */
         }
@@ -100,18 +89,17 @@ function buildNearbyRangeTitle(
   centerName: string,
   radiusKm: number
 ): string {
+  const xx = radiusKm;
   if (centerType === 'USER') {
-    return UI.peopleNearYou(radiusKm);
+    return `Factories near you within ${xx}km`;
   }
-  const name = (centerName || '此人').trim();
-  return UI.peopleNearName(name, radiusKm);
+  const name = (centerName || 'this supplier').trim();
+  return `Factories surrounding ${name} within ${xx}km`;
 }
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const initialRegion = loadStoredDefaultRegion();
-  const initialRegionMeta = getRegionByKey(initialRegion);
 
   const [shops, setShops] = useState<Shop[]>(() => loadShopsFromStorage(API_BASE_URL));
   const [shopsLoadStatus, setShopsLoadStatus] = useState<'loading' | 'ready' | 'error' | 'empty'>(() => {
@@ -126,12 +114,8 @@ const HomePage: React.FC = () => {
 
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
-  const [zoom, setZoom] = useState<number>(() =>
-    initialRegion !== 'all' ? initialRegionMeta.zoom : 5.5
-  );
-  const [center, setCenter] = useState<UserLocation>(() =>
-    initialRegion !== 'all' ? initialRegionMeta.center : CHINA_CENTER
-  );
+  const [zoom, setZoom] = useState<number>(5.5); 
+  const [center, setCenter] = useState<UserLocation>(CHINA_CENTER);
   
 
   // ✅ 新增：年龄验证状态
@@ -182,17 +166,15 @@ const HomePage: React.FC = () => {
   const [isAdmin, setIsAdmin] = useState(() => typeof window !== 'undefined' && localStorage.getItem('is_admin') === 'true');
   const [isAdManager, setIsAdManager] = useState(() => typeof window !== 'undefined' && localStorage.getItem('is_ad_manager') === 'true');
   const canManageAllAds = isAdmin || isAdManager;
-  const [hasOwnProfile, setHasOwnProfile] = useState(false);
 
   const [previewShop, setPreviewShop] = useState<Shop | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
-  /** 地图区域筛选（左下角下拉） */
-  const [regionFilter, setRegionFilter] = useState<SocialRegionKey>(initialRegion);
-  /** Quick MBTI type chips above map */
-  const [selectedMbtiQuick, setSelectedMbtiQuick] = useState<string[]>([]);
-  /** Looking-for goal filter */
-  const [lookingForFilter, setLookingForFilter] = useState<LookingForKey | null>(null);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  /** Map region filter (OR); empty = all. "All China" in selection disables regional restriction. */
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  /** MOQ / trade capacity filter */
+  const [moqFilter, setMoqFilter] = useState<MoqFilterKey | null>(null);
   const [searchPanelOpen, setSearchPanelOpen] = useState(false);
   const [searchDraft, setSearchDraft] = useState('');
   const [appliedSearchKeyword, setAppliedSearchKeyword] = useState('');
@@ -212,16 +194,6 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     drawerHeightRef.current = drawerHeight;
   }, [drawerHeight]);
-
-  useEffect(() => {
-    try {
-      for (const key of LEGACY_FACTORY_STORAGE_KEYS) {
-        localStorage.removeItem(key);
-      }
-    } catch {
-      /* ignore */
-    }
-  }, []);
 
   // 1. 原有的 URL 处理逻辑 (保持不变)
   useEffect(() => {
@@ -318,34 +290,9 @@ const HomePage: React.FC = () => {
     window.location.href = 'https://www.google.com';
   };
 
-  const getShopMbtiTag = (shop: Shop): string | null => {
-    const type = mbtiTypeFromBadge(shop.badge_text);
-    return type ? type.toLowerCase() : null;
-  };
+  const getShopTags = (shop: Shop): string[] => credentialIdsFromBadgeText(shop.badge_text);
 
-
-  const applyRegionFilter = useCallback(
-    (key: SocialRegionKey) => {
-      setRegionFilter(key);
-      if (!userLocation && !useNearbyFilter) {
-        const region = getRegionByKey(key);
-        setCenter(region.center);
-        setZoom(region.zoom);
-        setMapPanNonce((n) => n + 1);
-      }
-    },
-    [userLocation, useNearbyFilter]
-  );
-
-  const mapViewportCenter = useMemo(() => {
-    if (userLocation) return userLocation;
-    return getRegionByKey(regionFilter).center;
-  }, [userLocation, regionFilter]);
-
-  const mapViewportZoom = useMemo(() => {
-    if (userLocation) return zoom;
-    return getRegionByKey(regionFilter).zoom;
-  }, [userLocation, regionFilter, zoom]);
+  const allTags = FACTORY_CREDENTIAL_IDS;
 
   const existingShopNamesLower = useMemo(
     () => shops.map((s) => (s.name || '').trim().toLowerCase()).filter(Boolean),
@@ -374,29 +321,34 @@ const HomePage: React.FC = () => {
       });
     }
 
-    // 2. 区域筛选
-    if (regionFilter !== 'all') {
-      result = result.filter((shop) => shopMatchesRegion(shop, regionFilter));
-    }
-
-    if (selectedMbtiQuick.length > 0 && !selectedMbtiQuick.includes(MBTI_FILTER_ALL)) {
-      const typeSet = new Set(selectedMbtiQuick.map((t) => t.toUpperCase()));
-      result = result.filter((shop) => {
-        const type = mbtiTypeFromBadge(shop.badge_text);
-        return type != null && typeSet.has(type);
-      });
-    }
-
-    if (lookingForFilter != null) {
+    // 2. 执行标签过滤（多选：匹配任意一个）
+    if (selectedTags.length > 0) {
+      const targetTags = new Set(selectedTags);
       result = result.filter((shop) =>
-        profilePassesLookingForFilter(shop.additional_price, lookingForFilter)
+        getShopTags(shop).some((tag) => targetTags.has(tag))
       );
     }
 
-    // 3. Sort: new members first, then by distance
+    if (selectedRegions.length > 0 && !selectedRegions.includes('All China')) {
+      const regionSet = new Set(selectedRegions);
+      result = result.filter((shop) => {
+        const fc = (shop as Shop & { filter_city?: string }).filter_city?.trim();
+        return fc && regionSet.has(fc);
+      });
+    }
+
+    if (moqFilter != null) {
+      result = result.filter((shop) =>
+        shopPassesMoqFilter((shop as Shop & { min_spend?: number }).min_spend, moqFilter)
+      );
+    }
+
+    // 3. ✅ 综合排序 (credentials > distance)
     const getPriority = (shop: Shop) => {
-      if (shop.new_girls_last_15_days) return 2;
-      if (getShopMbtiTag(shop)) return 1;
+      const tags = getShopTags(shop);
+      if (tags.includes('industry-leader')) return 3;
+      if (tags.includes('trade-assurance')) return 2;
+      if (tags.includes('export-experience')) return 1;
       return 0;
     };
 
@@ -439,7 +391,7 @@ const HomePage: React.FC = () => {
     }
 
     return result;
-  }, [shops, useNearbyFilter, userLocation, radiusKm, regionFilter, selectedMbtiQuick, lookingForFilter, selectedShop]);
+  }, [shops, useNearbyFilter, userLocation, radiusKm, selectedTags, selectedRegions, moqFilter, selectedShop]);
 
   // Scrolling Logic
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -776,15 +728,13 @@ const HomePage: React.FC = () => {
   };
 
   // Business Logic
-  const fetchShops = async (attempt = 1, background = false) => {
-    const cached = loadShopsFromStorage(API_BASE_URL);
-    if (!background && cached.length === 0) {
-      setShopsLoadStatus('loading');
-    }
+  const fetchShops = async (attempt = 1) => {
+    const MAX_ATTEMPTS = 4;
+    setShopsLoadStatus('loading');
     try {
       const token = localStorage.getItem('auth_token') || '';
       const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      const timeoutId = window.setTimeout(() => controller.abort(), 45000);
       const response = await fetch(`${API_BASE_URL}/shops`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         signal: controller.signal,
@@ -798,7 +748,9 @@ const HomePage: React.FC = () => {
         setShopsLoadStatus('ready');
         setShopsDataSource('server');
       } else {
+        const cached = loadShopsFromStorage(API_BASE_URL);
         if (cached.length > 0) {
+          console.warn('API returned no factories — keeping cached listings');
           setShops(cached);
           setShopsLoadStatus('ready');
           setShopsDataSource('cache-stale');
@@ -810,10 +762,11 @@ const HomePage: React.FC = () => {
       }
     } catch (error) {
       console.error('❌ Load failed:', error);
-      if (attempt < FETCH_MAX_ATTEMPTS) {
-        await new Promise((resolve) => setTimeout(resolve, FETCH_RETRY_DELAY_MS));
-        return fetchShops(attempt + 1, background || cached.length > 0);
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, 8000 * attempt));
+        return fetchShops(attempt + 1);
       }
+      const cached = loadShopsFromStorage(API_BASE_URL);
       if (cached.length > 0) {
         setShops(cached);
         setShopsLoadStatus('ready');
@@ -827,32 +780,32 @@ const HomePage: React.FC = () => {
 
   const emptyListMessage = useMemo(() => {
     if (shops.length === 0) {
-      if (shopsLoadStatus === 'loading') return UI.loadingProfiles;
+      if (shopsLoadStatus === 'loading') return 'Loading factories…';
       if (shopsLoadStatus === 'error') {
-        return UI.loadFailed;
+        return 'Cannot reach the server. Check your network, or wait for the backend to wake up, then tap Retry below.';
       }
       if (shopsLoadStatus === 'empty') {
-        return UI.noProfilesYet;
+        return 'No factories in the database yet. An admin can upload an Excel file from the + button.';
       }
     }
     if (useNearbyFilter && userLocation) {
-      return UI.noOneNearby(radiusKm);
+      return `No factories within ${radiusKm}km of your location. Tap the green filter button (top right) to show all of China.`;
     }
-    if (regionFilter !== 'all') return UI.noRegionMatch;
-    if (selectedMbtiQuick.length > 0 && !selectedMbtiQuick.includes(MBTI_FILTER_ALL)) {
-      return UI.noMbtiMatch;
+    if (selectedTags.length > 0) return 'No factories match the selected credentials.';
+    if (selectedRegions.length > 0 && !selectedRegions.includes('All China')) {
+      return 'No factories in the selected regions.';
     }
-    if (lookingForFilter != null) return UI.noGoalMatch;
-    return UI.noFilterMatch;
+    if (moqFilter != null) return 'No factories match the MOQ filter.';
+    return 'No factories match the current filters.';
   }, [
     shops.length,
     shopsLoadStatus,
     useNearbyFilter,
     userLocation,
     radiusKm,
-    regionFilter,
-    selectedMbtiQuick,
-    lookingForFilter,
+    selectedTags.length,
+    selectedRegions,
+    moqFilter,
   ]);
 
   const handleSearch = async (keyword: string) => {
@@ -869,7 +822,7 @@ const HomePage: React.FC = () => {
       const results = raw.map((shop: any) => normalizeShopFromApi(shop, API_BASE_URL));
       setShops(results.length > 0 ? results : loadShopsFromStorage(API_BASE_URL));
       setAppliedSearchKeyword(keyword.trim());
-    } catch (err) { alert(UI.searchFailed); } 
+    } catch (err) { alert("Search failed"); } 
     finally { setIsSearching(false); }
   };
 
@@ -910,12 +863,12 @@ const HomePage: React.FC = () => {
     return () => document.removeEventListener('pointerdown', onDoc);
   }, [searchPanelOpen, appliedSearchKeyword]);
 
-  const toggleMbtiQuick = (r: string) => {
-    setSelectedMbtiQuick((prev) => {
-      if (r === MBTI_FILTER_ALL) {
-        return prev.includes(MBTI_FILTER_ALL) ? [] : [MBTI_FILTER_ALL];
+  const toggleRegion = (r: string) => {
+    setSelectedRegions((prev) => {
+      if (r === 'All China') {
+        return prev.includes('All China') ? [] : ['All China'];
       }
-      const withoutAll = prev.filter((x) => x !== MBTI_FILTER_ALL);
+      const withoutAll = prev.filter((x) => x !== 'All China');
       if (withoutAll.includes(r)) return withoutAll.filter((x) => x !== r);
       return [...withoutAll, r];
     });
@@ -933,14 +886,12 @@ const HomePage: React.FC = () => {
     localStorage.setItem('is_admin', adminFlag ? 'true' : 'false');
     localStorage.setItem('is_ad_manager', managerFlag ? 'true' : 'false');
     window.dispatchEvent(new Event('auth_changed'));
-    void refreshMyProfileStatus(token);
   };
   const handleLogout = () => {
     setIsLoggedIn(false);
     setUsername(null);
     setIsAdmin(false);
     setIsAdManager(false);
-    setHasOwnProfile(false);
     localStorage.removeItem("admin_logged_in");
     localStorage.removeItem('admin_username');
     localStorage.removeItem('auth_token');
@@ -979,7 +930,7 @@ const HomePage: React.FC = () => {
 
     try {
       await navigator.clipboard.writeText(shareUrl);
-      alert(UI.linkCopied);
+      alert('Link copied — send it to a buyer or sourcing colleague.');
     } catch {
       try {
         const ta = document.createElement('textarea');
@@ -988,16 +939,16 @@ const HomePage: React.FC = () => {
         ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
-        alert(UI.linkCopied);
+        alert('Link copied — send it to a buyer or sourcing colleague.');
       } catch {
-        alert(shareUrl || UI.linkCopyFailed);
+        alert(shareUrl || 'Unable to copy link');
       }
     }
   };
   
   const requestLocation = () => {
     if (!navigator.geolocation) {
-      alert(UI.geoNotSupported);
+      alert("Geolocation is not supported by your browser 😞");
       return;
     }
 
@@ -1035,15 +986,15 @@ const HomePage: React.FC = () => {
 
         // 4. 正确的提示语 (使用我们刚定义的常量)
         setTimeout(() => {
-          alert(`📍 已显示你附近 ${DEFAULT_RADIUS} 公里内的人。`);
+          alert(`📍 Showing verified factories within ${DEFAULT_RADIUS}km of your location.`);
         }, 100);
       },
       (err) => {
         console.error(err);
-        let msg = UI.geoFailed;
-        if (err.code === 1) msg = '你已拒绝定位权限，请在浏览器设置中开启以使用「附近」筛选。';
-        if (err.code === 2) msg = '无法获取位置，请检查 GPS 设置。';
-        if (err.code === 3) msg = '定位请求超时，请重试。';
+        let msg = "Location access denied.";
+        if (err.code === 1) msg = "You denied location access. Please enable it in browser settings to use 'Nearby' filter.";
+        if (err.code === 2) msg = "Location unavailable. Check your GPS settings.";
+        if (err.code === 3) msg = "Location request timed out.";
         alert(msg);
       },
       {
@@ -1054,41 +1005,18 @@ const HomePage: React.FC = () => {
     );
   };
 
-  const refreshMyProfileStatus = useCallback(async (tokenOverride?: string) => {
-    const token = tokenOverride || localStorage.getItem('auth_token') || '';
-    if (!token) {
-      setHasOwnProfile(false);
-      return;
-    }
-    try {
-      const res = await fetch(`${API_BASE_URL}/shop/mine`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        setHasOwnProfile(false);
-        return;
-      }
-      const data = await res.json();
-      setHasOwnProfile(Array.isArray(data) && data.length > 0);
-    } catch {
-      setHasOwnProfile(false);
-    }
-  }, [API_BASE_URL]);
-
   const handleAddShop = (newShop: Shop) => {
     if (shops.some(s => s.name.trim().toLowerCase() === newShop.name.trim().toLowerCase())) {
-      alert(`资料「${newShop.name}」已存在`);
+      alert(`Factory "${newShop.name}" already exists`);
       return;
     }
-    setShops([...shops, { ...newShop, can_edit: true }]);
-    setShowCreateAd(false);
-    setHasOwnProfile(true);
+    setShops([...shops, newShop]); setShowCreateAd(false);
     const slug = newShop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     navigate(`/shop/${slug}`);
   };
 
   const handleDeleteShop = async (shop: Shop) => {
-    if (!confirm(`确定删除「${shop.name}」？此操作不可撤销。`)) return;
+    if (!confirm(`Delete "${shop.name}"? This cannot be undone.`)) return;
     setDeletingId(shop.id);
     try {
       const token = localStorage.getItem('auth_token') || '';
@@ -1101,13 +1029,13 @@ const HomePage: React.FC = () => {
         body: JSON.stringify({ id: shop.id, token: "my_super_secret_delete_token" }),
       });
       const result = await res.json();
-      if (!res.ok || result.error) { alert(result.error || '删除失败'); return; }
+      if (!res.ok || result.error) { alert(result.error || "Delete failed"); return; }
       setShops(prev => prev.filter(s => s.id !== shop.id));
       if (selectedShop?.id === shop.id) {
         setSelectedShop(null);
         navigate('/');
       }
-    } catch (err) { console.error(err); alert(UI.networkError); } 
+    } catch (err) { console.error(err); alert("Network error"); } 
     finally { setDeletingId(null); }
   };
 
@@ -1116,48 +1044,37 @@ const HomePage: React.FC = () => {
       setShowLogin(true);
       return;
     }
-    if (!canManageAllAds && hasOwnProfile) {
-      alert(UI.alreadyHasProfile);
-      navigate('/my-ads');
+    if (!canManageAllAds) {
+      alert('Only admin or ad manager can add factory listings. Please contact an administrator.');
       return;
     }
     setShowCreateAd(true);
   };
 
   useEffect(() => {
-    if (!isLoggedIn) {
-      setHasOwnProfile(false);
-      return;
-    }
-    void refreshMyProfileStatus();
-  }, [isLoggedIn, refreshMyProfileStatus]);
-
-  useEffect(() => {
+    if (shops.length === 0) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(shops));
     } catch {
       /* ignore */
     }
   }, [shops]);
-  useEffect(() => {
-    const cached = loadShopsFromStorage(API_BASE_URL);
-    void fetchShops(1, cached.length > 0);
-  }, []);
+  useEffect(() => { fetchShops(); }, []);
 
   return (
-    <div className="map-app-shell w-full bg-transparent">
+    <div className="relative h-screen w-full bg-transparent flex flex-col overflow-hidden">
       {/* Region chips: no panel fill — only glass pills; map visible behind */}
-      <div className="fixed top-0 left-0 right-[72px] sm:right-0 z-[996] pointer-events-none bg-transparent">
+      <div className="absolute top-0 left-0 right-[72px] sm:right-0 z-[996] pointer-events-none bg-transparent">
         <div className="max-w-7xl mx-auto px-0.5 sm:px-3 pt-[max(2px,env(safe-area-inset-top,0px))] pb-0 pointer-events-auto bg-transparent">
-          {MBTI_FILTER_ROWS.map((row, rowIdx) => (
+          {[REGION_FILTER_OPTIONS.slice(0, 3), REGION_FILTER_OPTIONS.slice(3)].map((row, rowIdx) => (
             <div key={rowIdx} className="flex justify-center gap-0 sm:gap-1.5 mb-px last:mb-0">
               {row.map((r) => {
-                const on = selectedMbtiQuick.includes(r);
+                const on = selectedRegions.includes(r);
                 return (
                   <button
                     key={r}
                     type="button"
-                    onClick={() => toggleMbtiQuick(r)}
+                    onClick={() => toggleRegion(r)}
                     className={`min-w-0 flex-1 max-w-[25%] sm:max-w-none sm:flex-initial rounded-md sm:rounded-full px-0.5 py-0.5 sm:px-2.5 sm:py-1 text-[11px] leading-snug sm:text-sm sm:leading-normal font-bold border transition text-center backdrop-blur-sm ${
                       on
                         ? 'bg-rose-600/90 text-white border-rose-500/85 shadow-sm'
@@ -1174,14 +1091,18 @@ const HomePage: React.FC = () => {
       </div>
 
       <div
-        className={`fixed left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-3 pointer-events-none bg-transparent ${badgeBarTopClass}`}
+        className={`absolute left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-3 pointer-events-none bg-transparent ${badgeBarTopClass}`}
       >
         <div className="max-w-7xl mx-auto w-full flex flex-nowrap items-center justify-between gap-1.5 px-1 sm:px-2 py-0 pointer-events-auto">
           <div className="min-w-0 flex-1 flex items-center justify-start">
-            <RegionFilterDropdown value={regionFilter} onChange={applyRegionFilter} />
+            <BadgeFilterDropdown
+              allTags={allTags}
+              selectedTags={selectedTags}
+              onChange={setSelectedTags}
+            />
           </div>
           <div className="shrink-0 flex items-center justify-end">
-            <LookingForFilterDropdown value={lookingForFilter} onChange={setLookingForFilter} />
+            <MinSpendFilterDropdown value={moqFilter} onChange={setMoqFilter} />
           </div>
         </div>
       </div>
@@ -1189,212 +1110,222 @@ const HomePage: React.FC = () => {
       {/*
         Map must fill this panel (absolute inset-0), not sit below padding-top —
         otherwise the padded strip shows the page background (looks like a grey bar).
-        MBTI / goal filter rows float above the map with higher z-index.
+        Region / credentials / MOQ rows float above the map with higher z-index.
       */}
-      <div
-        className="flex-1 relative overflow-hidden min-h-0 pt-[calc(env(safe-area-inset-top,0px)+5.45rem)]"
-        style={{ paddingBottom: `${drawerHeight}px` }}
-      >
-        <div className="absolute inset-0 z-0 map-skeleton">
-          <Suspense fallback={null}>
-            <MapComponent
-              shops={filteredShops}
-              center={mapViewportCenter}
-              zoom={mapViewportZoom}
-              selectedShop={selectedShop}
-              userLocation={userLocation}
-              onMarkerClick={handleMarkerClickStable}
-              radiusKm={useNearbyFilter && userLocation ? radiusKm : 0}
-              mapPanNonce={mapPanNonce}
-            />
-          </Suspense>
+      <div className="flex-1 relative overflow-hidden min-h-0 pt-[calc(env(safe-area-inset-top,0px)+5.45rem)]">
+        <div className="absolute inset-0 z-0">
+          <MapComponent
+            shops={filteredShops}
+            center={userLocation || CHINA_CENTER}
+            zoom={zoom}
+            selectedShop={selectedShop}
+            userLocation={userLocation}
+            onMarkerClick={handleMarkerClickStable}
+            radiusKm={useNearbyFilter && userLocation ? radiusKm : 0}
+            mapPanNonce={mapPanNonce}
+          />
         </div>
+
+        {shopsDataSource !== 'server' && shops.length > 0 && (
+          <div className="absolute left-3 right-3 top-[calc(env(safe-area-inset-top,0px)+6.5rem)] z-[1002] pointer-events-auto">
+            <div className="rounded-xl bg-sky-50 border border-sky-200 px-4 py-3 text-sm text-sky-950 shadow-lg">
+              <p className="font-semibold">Showing cached data on this device only</p>
+              <p className="mt-1 text-xs opacity-90">
+                {shopsDataSource === 'cache-stale'
+                  ? 'The server returned 0 factories, but this browser still has an old local copy. Other phones will not see these listings until import succeeds on the server.'
+                  : 'Cannot reach the server right now. Other devices will not see this data.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => void fetchShops()}
+                className="mt-2 px-3 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-semibold"
+              >
+                Retry from server
+              </button>
+            </div>
+          </div>
+        )}
 
         {shops.length === 0 && shopsLoadStatus === 'error' && (
           <div className="absolute left-3 right-3 top-[calc(env(safe-area-inset-top,0px)+6.5rem)] z-[1002] pointer-events-auto">
             <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-950 shadow-lg">
-              <p className="font-semibold">{UI.loadFailedTitle}</p>
+              <p className="font-semibold">Could not load factory data</p>
               <p className="mt-1 text-xs opacity-90">
-                {UI.loadFailedHint}
+                Your phone may not have cached data like your computer. Check network or tap Retry.
               </p>
               <button
                 type="button"
                 onClick={() => void fetchShops()}
                 className="mt-2 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold"
               >
-                {UI.retry}
+                Retry
               </button>
             </div>
           </div>
         )}
-      </div>
 
-      {showShareTooltip && (
-        <button
-          type="button"
-          aria-label="关闭分享提示"
-          className="fixed inset-0 z-[998] bg-transparent cursor-default"
-          onClick={dismissShareTooltip}
-        />
-      )}
-
-      {useNearbyFilter && userLocation && (
-        <div className="fixed top-[calc(env(safe-area-inset-top,0px)+1rem)] left-4 right-20 z-[999] bg-white/90 backdrop-blur-sm p-3 rounded-2xl shadow-xl flex items-center gap-4">
-          <span className="text-xs font-bold text-gray-400 uppercase">{UI.nearbyRange}</span>
-          <input type="range" min="1" max="20" value={radiusKm} onChange={(e) => setRadiusKm(parseInt(e.target.value))} className="flex-1 accent-rose-500" />
-          <span className="text-sm font-bold text-rose-600 w-10 text-right">{radiusKm}{UI.km}</span>
+        {showShareTooltip && (
           <button
             type="button"
-            onClick={() => {
-              setUseNearbyFilter(false);
-              setUserLocation(null);
-              setSelectedShop(null);
-              setNearbyCenterType('USER');
-              setNearbyCenterName('');
-              setNearbyCenterShopId(null);
-              setCenter(CHINA_CENTER);
-              setZoom(5.5);
-            }}
-            className="ml-1 sm:ml-2 rounded-full bg-gradient-to-r from-rose-500 to-orange-400 px-3 py-1.5 text-xs font-extrabold text-white shadow-lg shadow-rose-500/25 ring-2 ring-white/90 transition hover:from-rose-600 hover:to-orange-500 active:scale-95 animate-pulse"
-            aria-label="清除附近范围筛选"
-            title={UI.clear}
-          >
-            {UI.clear}
-          </button>
-        </div>
-      )}
+            aria-label="Dismiss share tip"
+            className="fixed inset-0 z-[998] bg-transparent cursor-default"
+            onClick={dismissShareTooltip}
+          />
+        )}
 
-      <div
-        className="map-fab-column"
-        style={{ top: 'calc(env(safe-area-inset-top,0px) + 4.5rem)' }}
-      >
-        <div ref={searchControlRef} className="relative flex flex-col items-end">
-          <button
-            type="button"
-            onClick={handleSearchFabClick}
-            className={`p-3 rounded-full shadow-lg ${searchPanelOpen ? 'bg-rose-600 text-white' : 'bg-white text-gray-800'}`}
-            title={searchPanelOpen ? UI.searchConfirm : UI.search}
-            aria-expanded={searchPanelOpen}
-            aria-label={searchPanelOpen ? UI.searchConfirm : UI.openSearch}
-          >
-            {isSearching ? (
-              <span className="block h-6 w-6 border-2 border-current border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Search className="w-6 h-6" strokeWidth={2.25} />
-            )}
-          </button>
-          {searchPanelOpen && (
-            <div
-              className="absolute right-0 top-[calc(100%+8px)] w-[min(calc(100vw-5rem),18rem)] rounded-2xl border border-gray-200 bg-white p-3 shadow-2xl z-[10002]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">{UI.searchName}</label>
-              <input
-                type="text"
-                value={searchDraft}
-                onChange={(e) => setSearchDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') confirmSearchPanel();
-                  if (e.key === 'Escape') cancelSearchPanel();
-                }}
-                placeholder={UI.searchPlaceholder}
-                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400"
-                autoFocus
-              />
-            </div>
-          )}
-        </div>
-
-        <div className="relative flex items-center justify-end">
-          {showLocationFabTip && (
+        {/* Below fixed hamburger (top-4 ~56px tall) — avoid overlap */}
+        <div className="absolute top-[calc(env(safe-area-inset-top,0px)+4.5rem)] right-4 z-[1001] flex flex-col gap-3 items-end">
+          <div ref={searchControlRef} className="relative flex flex-col items-end">
             <button
               type="button"
-              onClick={dismissLocationFabTip}
-              className="absolute right-[calc(100%+10px)] top-1/2 -translate-y-1/2 w-[min(calc(100vw-5.5rem),240px)] z-[1002] text-left cursor-pointer"
-              aria-label="关闭定位提示"
+              onClick={handleSearchFabClick}
+              className={`p-3 rounded-full shadow-lg ${searchPanelOpen ? 'bg-rose-600 text-white' : 'bg-white text-gray-800'}`}
+              title={searchPanelOpen ? 'Search (confirm)' : 'Search factories'}
+              aria-expanded={searchPanelOpen}
+              aria-label={searchPanelOpen ? 'Confirm search' : 'Open search'}
             >
-              <div className="relative rounded-2xl bg-white px-3.5 py-2.5 shadow-xl border border-sky-100/90 pointer-events-auto">
-                <div
-                  className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-r border-t border-sky-100/90 rotate-45"
-                  aria-hidden
-                />
-                <p className="text-sm font-bold text-sky-700 leading-tight pr-1">
-                  {UI.locationTipTitle}
-                </p>
-                <p className="text-[11px] text-gray-600 leading-snug mt-1 pr-1">
-                  {UI.locationTipBody}
-                </p>
-                <p className="text-[10px] text-sky-500 font-semibold mt-1.5 pr-1">{UI.locationTipClose}</p>
-              </div>
+              {isSearching ? (
+                <span className="block h-6 w-6 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Search className="w-6 h-6" strokeWidth={2.25} />
+              )}
             </button>
-          )}
-          <button
-            type="button"
-            onClick={requestLocation}
-            className={`relative p-3 rounded-full shadow-lg ${userLocation ? 'bg-blue-500 text-white' : 'bg-white'}`}
-            title={UI.useMyLocation}
-            aria-label={UI.useMyLocation}
-          >
-            <Navigation className="w-6 h-6" />
-          </button>
-        </div>
-        <button
-          type="button"
-          onClick={handleCreateAdClick}
-          className="p-3 bg-white text-rose-500 rounded-full shadow-lg"
-          title={
-            !isLoggedIn
-              ? UI.loginToManage
-              : canManageAllAds
-                ? UI.addProfile
-                : hasOwnProfile
-                  ? UI.myProfile
-                  : UI.addMyProfile
-          }
-        >
-          <Plus className="w-6 h-6" />
-        </button>
-        <button type="button" onClick={() => setUseNearbyFilter(!useNearbyFilter)} className={`p-3 rounded-full shadow-lg ${useNearbyFilter ? 'bg-green-500 text-white' : 'bg-white'}`}><Filter className="w-6 h-6" /></button>
-
-        <div className="relative flex items-center mt-0.5">
-          {showShareTooltip && (
-            <div
-              className="absolute right-[calc(100%+10px)] top-1/2 -translate-y-1/2 w-[min(calc(100vw-6rem),220px)] pointer-events-none text-left"
-              role="tooltip"
-            >
-              <div className="relative rounded-2xl bg-white px-3.5 py-2.5 shadow-xl border border-rose-100/80">
-                <div
-                  className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-r border-t border-rose-100/80 rotate-45"
-                  aria-hidden
+            {searchPanelOpen && (
+              <div
+                className="absolute right-0 top-[calc(100%+8px)] w-[min(calc(100vw-5rem),18rem)] rounded-2xl border border-gray-200 bg-white p-3 shadow-2xl z-[10002]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Factory name</label>
+                <input
+                  type="text"
+                  value={searchDraft}
+                  onChange={(e) => setSearchDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') confirmSearchPanel();
+                    if (e.key === 'Escape') cancelSearchPanel();
+                  }}
+                  placeholder="Search…"
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400"
+                  autoFocus
                 />
-                <p className="text-sm font-bold text-violet-600 leading-tight pr-1">{UI.shareTipTitle}</p>
-                <p className="text-[11px] text-gray-600 leading-snug mt-1 pr-1">
-                  {UI.shareTipBody}
-                </p>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
+          <div className="relative flex items-center justify-end">
+            {showLocationFabTip && (
+              <button
+                type="button"
+                onClick={dismissLocationFabTip}
+                className="absolute right-[calc(100%+10px)] top-1/2 -translate-y-1/2 w-[min(calc(100vw-5.5rem),240px)] z-[1002] text-left cursor-pointer"
+                aria-label="Dismiss location tip"
+              >
+                <div className="relative rounded-2xl bg-white px-3.5 py-2.5 shadow-xl border border-sky-100/90 pointer-events-auto">
+                  <div
+                    className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-r border-t border-sky-100/90 rotate-45"
+                    aria-hidden
+                  />
+                  <p className="text-sm font-bold text-sky-700 leading-tight pr-1">
+                    Find verified factories in industrial zones
+                  </p>
+                  <p className="text-[11px] text-gray-600 leading-snug mt-1 pr-1">
+                    Tap the blue arrow to use your location; we will highlight suppliers around you on the map.
+                  </p>
+                  <p className="text-[10px] text-sky-500 font-semibold mt-1.5 pr-1">Tap here to close</p>
+                </div>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={requestLocation}
+              className={`relative p-3 rounded-full shadow-lg ${userLocation ? 'bg-blue-500 text-white' : 'bg-white'}`}
+              title="Use my location"
+              aria-label="Use my location for nearby"
+            >
+              <Navigation className="w-6 h-6" />
+            </button>
+          </div>
           <button
             type="button"
-            onClick={handleShareMap}
-            className="relative p-3 rounded-full shadow-lg bg-gradient-to-br from-orange-400 via-rose-400 to-pink-300 text-white animate-share-fab-pulse ring-2 ring-white/90"
-            title={UI.shareMap}
-            aria-label={UI.shareMap}
+            onClick={handleCreateAdClick}
+            className="p-3 bg-white text-rose-500 rounded-full shadow-lg"
+            title={!isLoggedIn ? 'Login to manage listings' : (canManageAllAds ? 'Add factory listing' : 'Admin / ad manager only')}
           >
-            <Share2 className="w-6 h-6" strokeWidth={2.25} />
+            <Plus className="w-6 h-6" />
           </button>
-        </div>
-      </div>
+          <button type="button" onClick={() => setUseNearbyFilter(!useNearbyFilter)} className={`p-3 rounded-full shadow-lg ${useNearbyFilter ? 'bg-green-500 text-white' : 'bg-white'}`}><Filter className="w-6 h-6" /></button>
 
-      {/* 底部抽屉：固定在视口，不随页面滚动 */}
-      <div
-        ref={drawerRef}
-        className="map-bottom-drawer flex flex-col touch-manipulation"
-        style={{
-          height: `${drawerHeight}px`,
-          paddingBottom: 'max(4px, env(safe-area-inset-bottom, 0px))',
-          transition: isDraggingDrawer.current ? 'none' : 'height 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
-        }}
+          <div className="relative flex items-center mt-0.5">
+            {showShareTooltip && (
+              <div
+                className="absolute right-[calc(100%+10px)] top-1/2 -translate-y-1/2 w-[min(calc(100vw-6rem),220px)] pointer-events-none text-left"
+                role="tooltip"
+              >
+                <div className="relative rounded-2xl bg-white px-3.5 py-2.5 shadow-xl border border-rose-100/80">
+                  <div
+                    className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-r border-t border-rose-100/80 rotate-45"
+                    aria-hidden
+                  />
+                  <p className="text-sm font-bold text-rose-600 leading-tight pr-1">Share directory</p>
+                  <p className="text-[11px] text-gray-600 leading-snug mt-1 pr-1">
+                    Know a buyer who needs this supplier? Share this factory!
+                  </p>
+                </div>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleShareMap}
+              className="relative p-3 rounded-full shadow-lg bg-gradient-to-br from-orange-400 via-rose-400 to-pink-300 text-white animate-share-fab-pulse ring-2 ring-white/90"
+              title="Share this map"
+              aria-label="Share this map"
+            >
+              <Share2 className="w-6 h-6" strokeWidth={2.25} />
+            </button>
+          </div>
+        </div>
+
+        {useNearbyFilter && userLocation && (
+          <div className="absolute top-4 left-4 right-20 z-[999] bg-white/90 backdrop-blur-sm p-3 rounded-2xl shadow-xl flex items-center gap-4">
+            <span className="text-xs font-bold text-gray-400 uppercase">Range</span>
+            <input type="range" min="1" max="20" value={radiusKm} onChange={(e) => setRadiusKm(parseInt(e.target.value))} className="flex-1 accent-rose-500" />
+            <span className="text-sm font-bold text-rose-600 w-10 text-right">{radiusKm}km</span>
+            <button
+              type="button"
+              onClick={() => {
+                setUseNearbyFilter(false);
+                setUserLocation(null);
+                setSelectedShop(null);
+                setNearbyCenterType('USER');
+                setNearbyCenterName('');
+                setNearbyCenterShopId(null);
+                setCenter(CHINA_CENTER);
+                setZoom(5.5);
+              }}
+              className="ml-1 sm:ml-2 rounded-full bg-gradient-to-r from-rose-500 to-orange-400 px-3 py-1.5 text-xs font-extrabold text-white shadow-lg shadow-rose-500/25 ring-2 ring-white/90 transition hover:from-rose-600 hover:to-orange-500 active:scale-95 animate-pulse"
+              aria-label="Clear nearby range filter"
+              title="Clear nearby range filter"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
+        {/* Drawer */}
+        <div 
+          ref={drawerRef}
+          className="absolute bottom-0 left-0 right-0 z-[999] flex flex-col touch-manipulation"
+          style={{
+            height: `${drawerHeight}px`,
+            paddingBottom: 'max(4px, env(safe-area-inset-bottom, 0px))',
+            transition: isDraggingDrawer.current ? 'none' : 'height 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
+            borderTopLeftRadius: '24px',
+            borderTopRightRadius: '24px',
+            boxShadow: '0 -6px 28px rgba(0,0,0,0.18), 0 -1px 0 rgba(255,255,255,0.5) inset',
+            background: 'linear-gradient(to top, rgba(255, 130, 90, 0.92), rgba(255, 190, 120, 0.75), rgba(255, 248, 235, 0.55))',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+          }}
           onTouchStart={handleDrawerTouchStart}
           onTouchMove={handleDrawerTouchMove}
           onTouchEnd={handleDrawerTouchEnd}
@@ -1409,7 +1340,7 @@ const HomePage: React.FC = () => {
                 className="h-1.5 w-16 sm:w-20 rounded-full bg-white/95 shadow-[0_1px_8px_rgba(0,0,0,0.35)] ring-1 ring-amber-900/20 pointer-events-none"
                 aria-hidden
               />
-              <span className="sr-only">{UI.dragMinimize}</span>
+              <span className="sr-only">Drag down to minimise the list</span>
             </div>
             {isExpanded ? (
               <div className="h-full w-full pt-2 pb-3 px-3 sm:px-4 flex flex-col min-h-0">
@@ -1425,25 +1356,25 @@ const HomePage: React.FC = () => {
                           {selectedShop?.id !== nearbyCenterShop.id && (
                             <>
                               <span className="text-[11px] sm:text-xs font-semibold text-amber-950 leading-snug tracking-tight">
-                                {UI.peopleSurrounding}
+                                Factories surrounding
                               </span>
                               <button
                                 type="button"
                                 onClick={handleBackToNearbyCenterShop}
                                 className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-extrabold text-rose-600 shadow-sm ring-1 ring-rose-100 transition hover:bg-rose-50 active:scale-95"
-                                aria-label={`回到 ${nearbyCenterShop.name}`}
+                                aria-label={`Back to ${nearbyCenterShop.name}`}
                               >
                                 <MapPin size={12} />
-                                {nearbyCenterShop.name}（{UI.backToMe}）
+                                {nearbyCenterShop.name} (back to me)
                               </button>
                               <span className="text-[11px] sm:text-xs font-semibold text-amber-950 leading-snug tracking-tight">
-                                {UI.withinKm(radiusKm)}
+                                within {radiusKm}km
                               </span>
                             </>
                           )}
                           {selectedShop?.id === nearbyCenterShop.id && (
                             <span className="text-[11px] sm:text-xs font-semibold text-amber-950 leading-snug tracking-tight">
-                              {nearbyCenterShop.name} {UI.withinKm(radiusKm)}的{UI.peopleSurrounding}
+                              Factories surrounding {nearbyCenterShop.name} within {radiusKm}km
                             </span>
                           )}
                         </div>
@@ -1458,7 +1389,7 @@ const HomePage: React.FC = () => {
                 <div className="relative flex-1 min-h-0 min-w-0 w-full">
                   <div
                     ref={scrollRef}
-                    className="drawer-scroll-area flex items-center h-full min-h-0 min-w-0 pr-12"
+                    className="flex items-center h-full min-h-0 min-w-0 pr-12"
                     style={{ width: 'max-content', cursor: 'grab', touchAction: 'none', userSelect: 'none', willChange: 'transform', transform: `translateX(${currentTranslateX.current}px)` }}
                     onMouseDown={(e) => handleListDragStart(e.clientX)}
                     onTouchStart={(e) => handleListDragStart(e.touches[0].clientX)}
@@ -1480,7 +1411,6 @@ const HomePage: React.FC = () => {
                               handleCardClick(shop, finalX);
                             }}
                           >
-                            <Suspense fallback={<div className="w-[260px] h-40 rounded-2xl bg-white/60 animate-pulse" />}>
                             <ShopCard
                               shop={shop}
                               isSelected={isSelected}
@@ -1502,10 +1432,9 @@ const HomePage: React.FC = () => {
                               onAutoEditHandled={() => setPendingEditShopId(null)}
                               onEditModalChange={setShopCardEditOpen}
                             />
-                            </Suspense>
                             {isSelected && (
                               <div className="mt-2 text-center text-xs font-bold text-rose-700 bg-white/90 rounded py-1 shadow-sm border border-rose-100 animate-pulse">
-                                {UI.tapAgainDetails}
+                                Tap again for details
                               </div>
                             )}
                           </div>
@@ -1520,7 +1449,7 @@ const HomePage: React.FC = () => {
                             onClick={() => void fetchShops()}
                             className="px-4 py-2 rounded-lg bg-rose-600 text-white text-sm font-semibold hover:bg-rose-700"
                           >
-                            {UI.retry}
+                            Retry
                           </button>
                         )}
                         {shops.length > 0 && useNearbyFilter && userLocation && (
@@ -1529,7 +1458,7 @@ const HomePage: React.FC = () => {
                             onClick={() => setUseNearbyFilter(false)}
                             className="px-4 py-2 rounded-lg bg-white text-gray-800 text-sm font-semibold hover:bg-gray-100"
                           >
-                            {UI.showAllProfiles}
+                            Show all factories
                           </button>
                         )}
                       </div>
@@ -1543,7 +1472,7 @@ const HomePage: React.FC = () => {
                       type="button"
                       onClick={toggleDrawer}
                       className="min-h-12 min-w-12 w-12 h-12 rounded-full flex items-center justify-center text-white bg-slate-900 hover:bg-slate-800 active:scale-95 shadow-[0_4px_20px_rgba(0,0,0,0.45)] ring-[3px] ring-white/90 border-2 border-white/50 motion-reduce:shadow-lg"
-                      aria-label={UI.collapseList}
+                      aria-label="Collapse factory list"
                     >
                       <ChevronDown size={26} strokeWidth={3} />
                     </button>
@@ -1559,14 +1488,14 @@ const HomePage: React.FC = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-bold text-sm sm:text-base truncate text-white drop-shadow">{selectedShop.name}</h3>
-                      <p className="text-[10px] sm:text-xs text-white/90 font-medium truncate drop-shadow">{UI.tapAgainDetails}</p>
+                      <p className="text-[10px] sm:text-xs text-white/90 font-medium truncate drop-shadow">Tap again for details</p>
                     </div>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 text-white w-full min-w-0">
                     <MapPin size={16} className="flex-shrink-0 drop-shadow" />
                     <span className="font-bold text-[11px] sm:text-xs leading-tight drop-shadow">
-                      {UI.selectOnMap}
+                      Select a factory on the map
                     </span>
                   </div>
                 )}
@@ -1581,7 +1510,7 @@ const HomePage: React.FC = () => {
                       toggleDrawer();
                     }}
                     className="min-h-12 min-w-12 w-12 h-12 rounded-full flex items-center justify-center text-white bg-gradient-to-br from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 active:scale-95 shadow-[0_4px_22px_rgba(225,29,72,0.55)] ring-[3px] ring-white/95 border-2 border-white/60 animate-pulse motion-reduce:animate-none"
-                    aria-label={UI.expandList}
+                    aria-label="Expand factory list"
                   >
                     <ChevronUp size={28} strokeWidth={3} />
                   </button>
@@ -1590,12 +1519,28 @@ const HomePage: React.FC = () => {
             )}
           </div>
         </div>
+      </div>
 
       {showCreateAd && (
         <AdminPanel
           onAddShop={handleAddShop}
           onClose={() => setShowCreateAd(false)}
           existingShopNamesLower={existingShopNamesLower}
+          onBulkShopsImported={(newShops) => {
+            setShopsDataSource('server');
+            setShops((prev) => {
+              const seen = new Set(prev.map((s) => s.name.trim().toLowerCase()));
+              const merged = [...prev];
+              for (const s of newShops) {
+                const k = s.name.trim().toLowerCase();
+                if (!seen.has(k)) {
+                  seen.add(k);
+                  merged.push(s);
+                }
+              }
+              return merged;
+            });
+          }}
         />
       )}
       {showLogin && <LoginPanel onLoginSuccess={(payload) => { handleLoginSuccess(payload); setShowLogin(false); }} onClose={() => setShowLogin(false)} />}

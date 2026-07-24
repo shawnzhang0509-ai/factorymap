@@ -6,7 +6,7 @@ class Shop(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     address = db.Column(db.String(200))
-    phone = db.Column(db.String(120))
+    phone = db.Column(db.String(20))
     lat = db.Column(db.Float)
     lng = db.Column(db.Float)
     badge_text = db.Column(db.Text, nullable=True)
@@ -18,8 +18,6 @@ class Shop(db.Model):
     filter_city = db.Column(db.String(80), nullable=True)
     min_spend = db.Column(db.Integer, nullable=True)
     main_product = db.Column(db.String(200), nullable=True)
-    social_xhs = db.Column(db.String(200), nullable=True)
-    social_bilibili = db.Column(db.String(200), nullable=True)
 
     # 关联图片
     pictures = db.relationship(
@@ -60,8 +58,6 @@ class Shop(db.Model):
             'filter_city': self.filter_city,
             'min_spend': self.min_spend,
             'main_product': self.main_product,
-            'social_xhs': self.social_xhs,
-            'social_bilibili': self.social_bilibili,
             # 👇 使用转换后的图片数据 (而不是原始对象)
             'pictures': pics_data,
             'can_edit': False

@@ -9,8 +9,6 @@ from app import db
 from app.models.shop import Shop
 from app.models.picture import Picture
 from app.models.association import ShopPicture
-from app.models.shop_owner import ShopOwner
-from app.models.click_stat import ClickStat
 from app.services.upload_service import save_uploaded_file
 
 
@@ -118,7 +116,7 @@ class ShopRepository:
         shop = Shop(
             name=data.get('name'),
             address=data.get('address'),
-            phone=(data.get('phone') or '').strip() or None,
+            phone=data.get('phone'),
             lat=data.get('lat'),
             lng=data.get('lng'),
             badge_text=data.get('badge_text'),
@@ -128,8 +126,6 @@ class ShopRepository:
             filter_city=(data.get('filter_city') or '').strip() or None,
             min_spend=_parse_min_spend(data.get('min_spend')),
             main_product=(data.get('main_product') or '').strip() or None,
-            social_xhs=(data.get('social_xhs') or '').strip() or None,
-            social_bilibili=(data.get('social_bilibili') or '').strip() or None,
         )
 
         self.db.session.add(shop)
@@ -181,10 +177,6 @@ class ShopRepository:
         if 'main_product' in data:
             mp = data.get('main_product')
             shop.main_product = (mp or '').strip() or None
-        if 'social_xhs' in data:
-            shop.social_xhs = (data.get('social_xhs') or '').strip() or None
-        if 'social_bilibili' in data:
-            shop.social_bilibili = (data.get('social_bilibili') or '').strip() or None
 
         # 3. 更新布尔字段
         new_girls = data.get("new_girls_last_15_days")
@@ -241,29 +233,6 @@ class ShopRepository:
         self.db.session.commit()
         return shop
 
-    def _delete_shop_graph(self, shop_id: int) -> None:
-        """Remove one shop and its pictures, ownership, and stats."""
-        shop_pictures = (
-            self.db.session.query(ShopPicture)
-            .filter(ShopPicture.shop_id == shop_id)
-            .all()
-        )
-        picture_ids = [sp.picture_id for sp in shop_pictures]
-
-        if picture_ids:
-            for pic in self.db.session.query(Picture).filter(Picture.id.in_(picture_ids)):
-                self.db.session.delete(pic)
-
-        for sp in shop_pictures:
-            self.db.session.delete(sp)
-
-        self.db.session.query(ShopOwner).filter(ShopOwner.shop_id == shop_id).delete()
-        self.db.session.query(ClickStat).filter(ClickStat.shop_id == shop_id).delete()
-
-        shop = self.get_by_id(shop_id)
-        if shop:
-            self.db.session.delete(shop)
-
     def del_shop(self, shop_id: int):
         """删除店铺及其所有关联图片记录"""
         shop = self.get_by_id(shop_id)
@@ -271,31 +240,26 @@ class ShopRepository:
             return False, "Shop not found"
 
         try:
-            self._delete_shop_graph(shop_id)
+            shop_pictures = (
+                self.db.session.query(ShopPicture)
+                .filter(ShopPicture.shop_id == shop_id)
+                .all()
+            )
+            picture_ids = [sp.picture_id for sp in shop_pictures]
+
+            # ✅ 仅删除数据库记录，不再尝试物理删除文件
+            for pic in self.db.session.query(Picture).filter(Picture.id.in_(picture_ids)):
+                self.db.session.delete(pic)
+
+            for sp in shop_pictures:
+                self.db.session.delete(sp)
+
+            self.db.session.delete(shop)
             self.db.session.commit()
+
             return True, "Shop deleted successfully"
 
         except Exception as e:
             self.db.session.rollback()
             current_app.logger.error(f"删除店铺失败: {str(e)}")
             return False, str(e)
-
-    def purge_all_shops(self) -> int:
-        """Delete every profile/listing and related rows. Returns deleted shop count."""
-        try:
-            shop_ids = [row.id for row in self.db.session.query(Shop.id).all()]
-            deleted = len(shop_ids)
-            if deleted == 0:
-                return 0
-
-            self.db.session.query(ClickStat).delete()
-            self.db.session.query(ShopOwner).delete()
-            self.db.session.query(ShopPicture).delete()
-            self.db.session.query(Picture).delete()
-            self.db.session.query(Shop).delete()
-            self.db.session.commit()
-            return deleted
-        except Exception as e:
-            self.db.session.rollback()
-            current_app.logger.error(f"purge_all_shops failed: {e}")
-            raise

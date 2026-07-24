@@ -1,32 +1,45 @@
-import React, { useState } from 'react';
-import { X, Upload, Info, DollarSign, MapPin, Navigation } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { X, Upload, Info, DollarSign, MapPin, Table2, Download } from 'lucide-react';
 import { ShopCreate, Shop } from './types';
-import { MBTI_TYPES } from '../constants/mbtiTypes';
-import { LOOKING_FOR_OPTIONS } from '../constants/socialTags';
+import { CHINA_ECONOMIC_ZONES } from '../constants/filterRegions';
+import { MOQ_TIER_FORM_OPTIONS } from '../constants/moqTiers';
 import { getApiBaseUrl } from '../config/api';
-import { UI } from '../constants/i18n';
-import { SELECTABLE_REGIONS } from '../constants/filterRegions';
-import { geolocateWithPrivacyOffset, formatCoords } from '../utils/geocode';
 
 interface AdminPanelProps {
   onAddShop: (shop: Shop) => void;
   onClose: () => void;
   /** Lowercase trimmed names of existing shops (duplicate name blocked server-side too) */
   existingShopNamesLower?: string[];
+  /** After bulk Excel import, parent can merge `created` into map state. */
+  onBulkShopsImported?: (shops: Shop[]) => void;
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({
   onAddShop,
   onClose,
   existingShopNamesLower = [],
+  onBulkShopsImported,
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkSummary, setBulkSummary] = useState<string | null>(null);
+  const [bulkImportOk, setBulkImportOk] = useState<boolean | null>(null);
+  const excelInputRef = useRef<HTMLInputElement>(null);
+  const bulkSummaryRef = useRef<HTMLPreElement>(null);
 
+  const revealBulkSummary = () => {
+    requestAnimationFrame(() => {
+      bulkSummaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  };
+  
   const [newShop, setNewShop] = useState<Partial<ShopCreate>>({
     name: '',
     address: '',
     phone: '',
+    lat: 31.2304,
+    lng: 121.4737,
     new_girls_last_15_days: false,
     badge_text: '',
     pictures: [],
@@ -35,111 +48,71 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     filter_city: '',
     min_spend: undefined,
     main_product: '',
-    social_xhs: '',
-    social_bilibili: '',
   });
 
-  const [mbtiType, setMbtiType] = useState<string>('ENFP');
-  const [lookingFor, setLookingFor] = useState<string[]>(['friends']);
-  const [coordInput, setCoordInput] = useState('');
-  const [locating, setLocating] = useState(false);
-  const [coordsReady, setCoordsReady] = useState(false);
-  const [geocodeMessage, setGeocodeMessage] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
 
   const nameKey = (newShop.name || '').trim().toLowerCase();
   const nameDuplicate =
     nameKey.length > 0 && existingShopNamesLower.includes(nameKey);
 
-  const handleUseMyLocation = async () => {
-    setLocating(true);
-    setGeocodeMessage('');
-    setError('');
-    try {
-      const result = await geolocateWithPrivacyOffset();
-      setNewShop((prev) => ({
-        ...prev,
-        lat: result.lat,
-        lng: result.lng,
-        address: (prev.address || '').trim() || UI.autoLocationAddress,
-      }));
-      setCoordInput(formatCoords(result.lat, result.lng));
-      setCoordsReady(true);
-      setGeocodeMessage(UI.geocodeSuccess(result.offset_km));
-    } catch (err) {
-      setGeocodeMessage(err instanceof Error ? err.message : UI.geocodeFailed);
-      setCoordsReady(false);
-    } finally {
-      setLocating(false);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newShop.name || !mbtiType) {
-      setError(UI.requiredFields);
+    if (!newShop.name || !newShop.address || !newShop.phone || !newShop.lat || !newShop.lng || !newShop.main_product?.trim()) {
+      setError('Please fill in all required fields (Factory name, Location, Phone, Coordinates, Main product).');
       return;
     }
     if (nameDuplicate) {
-      setError(UI.nameTaken);
+      setError('This factory name is already used. Please choose a different name (same spelling with different spacing/capitalization also counts as duplicate).');
       return;
     }
 
-    let lat = newShop.lat;
-    let lng = newShop.lng;
-    if (!coordsReady || lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) {
-      setError(UI.requiredCoords);
-      return;
-    }
-
-    setIsSubmitting(true);
+    setIsSubmitting(true); 
     setError('');
 
-    const address = (newShop.address || '').trim() || UI.autoLocationAddress;
     const API_BASE_URL = getApiBaseUrl();
     const add_api_url = `${API_BASE_URL}/shop/add`;
     const formData = new FormData();
+    
+    formData.append("name", newShop.name!);
+    formData.append("address", newShop.address!);
+    formData.append("phone", newShop.phone!);
+    formData.append("lat", String(newShop.lat));
+    formData.append("lng", String(newShop.lng));
+    
+    const tagsString = tags.join(",");
+    formData.append("badge_text", tagsString); 
+    
+    formData.append("new_girls_last_15_days", String(newShop.new_girls_last_15_days || false));
 
-    formData.append('name', newShop.name!);
-    formData.append('address', address);
-    const phone = (newShop.phone || '').trim();
-    if (phone) {
-      formData.append('phone', phone);
-    }
-    formData.append('lat', String(lat));
-    formData.append('lng', String(lng));
-    formData.append('badge_text', mbtiType);
-    formData.append('additional_price', lookingFor.join(','));
-    formData.append('new_girls_last_15_days', String(newShop.new_girls_last_15_days || false));
-
+    // 🔥 添加新字段到 FormData
     if (newShop.about_me) {
-      formData.append('about_me', newShop.about_me);
+      formData.append("about_me", newShop.about_me);
+    }
+    if (newShop.additional_price) {
+      formData.append("additional_price", newShop.additional_price);
     }
     if ((newShop.filter_city || '').trim()) {
-      formData.append('filter_city', (newShop.filter_city || '').trim());
+      formData.append("filter_city", (newShop.filter_city || '').trim());
     }
     if (newShop.main_product?.trim()) {
       formData.append('main_product', newShop.main_product.trim());
     }
-    if ((newShop.social_xhs || '').trim()) {
-      formData.append('social_xhs', (newShop.social_xhs || '').trim());
-    }
-    if ((newShop.social_bilibili || '').trim()) {
-      formData.append('social_bilibili', (newShop.social_bilibili || '').trim());
-    }
-    if (newShop.min_spend != null && newShop.min_spend >= 16) {
+    if (newShop.min_spend != null && newShop.min_spend >= 1 && newShop.min_spend <= 4) {
       formData.append('min_spend', String(newShop.min_spend));
     }
 
-    (newShop.pictures as File[] | undefined)?.forEach((file) => {
-      if (file instanceof File) formData.append('pictures', file);
+    (newShop.pictures as File[] | undefined)?.forEach(file => {
+      if (file instanceof File) formData.append("pictures", file);
     });
 
     try {
       const token = localStorage.getItem('auth_token') || '';
       const res = await fetch(add_api_url, {
-        method: 'POST',
+        method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        body: formData,
+        body: formData
       });
       const result = await res.json();
 
@@ -147,8 +120,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         setError(
           result.error ||
             (res.status === 409
-              ? UI.nameTaken
-              : UI.addFailed)
+              ? 'This factory name is already in use.'
+              : 'Failed to add factory. Please try again.')
         );
         setIsSubmitting(false);
         return;
@@ -156,10 +129,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
       onAddShop(result);
 
+      // Reset Form
       setNewShop({
         name: '',
         address: '',
         phone: '',
+        lat: 31.2304,
+        lng: 121.4737,
         new_girls_last_15_days: false,
         badge_text: '',
         pictures: [],
@@ -168,17 +144,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         filter_city: '',
         min_spend: undefined,
         main_product: '',
-        social_xhs: '',
-        social_bilibili: '',
       });
-      setMbtiType('ENFP');
-      setLookingFor(['friends']);
-      setCoordInput('');
-      setCoordsReady(false);
-      setGeocodeMessage('');
+      setTags([]);
+      setTagInput("");
       onClose();
+
     } catch (err) {
-      setError(UI.networkError);
+      setError("Network error. Please check your connection.");
       console.error(err);
     } finally {
       setIsSubmitting(false);
@@ -188,7 +160,160 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      setNewShop((prev) => ({ ...prev, pictures: [...(prev.pictures as File[]), ...Array.from(files)] }));
+      setNewShop(prev => ({ ...prev, pictures: [...(prev.pictures as any[]), ...Array.from(files)] }));
+    }
+  };
+
+  const downloadBulkTemplate = async () => {
+    setBulkSummary(null);
+    setBulkImportOk(null);
+    setError('');
+    const base = getApiBaseUrl();
+    setBulkLoading(true);
+    try {
+      const token = localStorage.getItem('auth_token') || '';
+      const res = await fetch(`${base}/shop/bulk-import-template`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setError((j as { error?: string }).error || 'Failed to download template');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'factory_bulk_import_template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      setError('Network error downloading template');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkExcelSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setBulkSummary(null);
+    setBulkImportOk(null);
+    setError('');
+    const base = getApiBaseUrl();
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+      setError('Please choose a .xlsx file');
+      return;
+    }
+    setBulkLoading(true);
+    try {
+      const token = localStorage.getItem('auth_token') || '';
+      const fd = new FormData();
+      fd.append('file', file);
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 120000);
+      const res = await fetch(`${base}/shop/bulk-import-excel`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+        signal: controller.signal,
+      });
+      window.clearTimeout(timeoutId);
+
+      const rawText = await res.text();
+      let result: {
+        error?: string;
+        summary?: { created_count?: number; skipped_count?: number; error_count?: number };
+        errors?: { row: number; message: string }[];
+        created?: Shop[];
+      };
+      try {
+        result = JSON.parse(rawText);
+      } catch {
+        setError(
+          res.ok
+            ? 'Import failed: server returned an invalid response.'
+            : `Import failed (HTTP ${res.status}). The backend may still be waking up — wait 1 minute and try again.`
+        );
+        setBulkImportOk(false);
+        return;
+      }
+
+      if (!res.ok) {
+        setError(result.error || `Import failed (HTTP ${res.status})`);
+        setBulkImportOk(false);
+        return;
+      }
+      const createdCount = result.summary?.created_count ?? 0;
+      const skippedCount = result.summary?.skipped_count ?? 0;
+      const errorCount = result.summary?.error_count ?? 0;
+
+      let dbCount: number | null = null;
+      try {
+        const countRes = await fetch(`${base}/shop/shops/count`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (countRes.ok) {
+          const countData = await countRes.json();
+          dbCount = typeof countData.count === 'number' ? countData.count : null;
+        }
+      } catch {
+        /* server may still be waking up */
+      }
+
+      const lines = [
+        `API server: ${base}`,
+        dbCount != null
+          ? `Database total: ${dbCount} factories`
+          : 'Database total: could not verify (server slow or offline)',
+        `Created: ${createdCount}`,
+        `Skipped (duplicate name): ${skippedCount}`,
+        `Errors: ${errorCount}`,
+      ];
+      if (result.errors?.length) {
+        const parts = (result.errors as { row: number; message: string }[])
+          .slice(0, 5)
+          .map((x) => `row ${x.row}: ${x.message}`);
+        lines.push(`First errors: ${parts.join('; ')}`);
+      }
+      if (createdCount === 0) {
+        lines.push('');
+        if (skippedCount > 0) {
+          lines.push('No new rows saved — these factory names already exist in the database.');
+        } else if (errorCount > 0) {
+          lines.push('No rows saved — fix the Excel errors above and try again.');
+        } else {
+          lines.push('No new factories were added (empty file or no valid rows).');
+        }
+        lines.push('Other devices only see data stored on the server. Hard-refresh this page to confirm.');
+        setBulkImportOk(false);
+      } else {
+        lines.push('');
+        lines.push(
+          `${createdCount} factories saved to the server. Mobile should see them after refresh (wait ~1 min if backend is waking up).`
+        );
+        setBulkImportOk(true);
+      }
+      setBulkSummary(lines.join('\n'));
+      revealBulkSummary();
+      const created = result.created;
+      if (created?.length && onBulkShopsImported) {
+        onBulkShopsImported(created);
+      }
+    } catch (err) {
+      console.error(err);
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setError('Import timed out after 2 minutes. The server may still be waking up — wait and try again.');
+      } else {
+        setError('Network error during import. Check your connection and try again.');
+      }
+      setBulkImportOk(false);
+    } finally {
+      setBulkLoading(false);
     }
   };
 
@@ -196,7 +321,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     <div className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center">
       <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col">
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
-          <h2 className="text-xl font-bold text-gray-900">{UI.addProfile}</h2>
+          <h2 className="text-xl font-bold text-gray-900">Add factory listing</h2>
           <button onClick={onClose} className="p-2 -mr-2 text-gray-400 hover:text-gray-600 transition">
             <X className="w-6 h-6" />
           </button>
@@ -204,181 +329,214 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto no-scrollbar">
           <div className="space-y-4">
+            
+            {/* Error Message */}
             {error && (
               <div className="bg-red-50 text-red-600 text-xs font-bold p-3 rounded-xl border border-red-100">
                 {error}
               </div>
             )}
 
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                <Table2 size={14} /> Bulk import (Excel)
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Upload your industrial-belt sheet as-is when headers include{' '}
+                <span className="font-mono text-slate-700">企业名称, 详细地址, 联系电话, 纬度, 经度</span>
+                (or English <span className="font-mono">name, address, phone, lat, lng</span>). Extra columns such as{' '}
+                统一社会信用代码 / 注册资本 / 企业状态 / 数据来源 are saved into the factory profile (description). Up to
+                500 rows; photos are not imported.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={bulkLoading}
+                  onClick={() => void downloadBulkTemplate()}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:border-rose-400 hover:text-rose-600 disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4" />
+                  Template .xlsx
+                </button>
+                <button
+                  type="button"
+                  disabled={bulkLoading}
+                  onClick={() => excelInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-500 text-white text-xs font-bold hover:bg-rose-600 disabled:opacity-50"
+                >
+                  <Table2 className="w-4 h-4" />
+                  {bulkLoading ? 'Importing…' : 'Upload filled .xlsx'}
+                </button>
+                <input
+                  ref={excelInputRef}
+                  type="file"
+                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  className="hidden"
+                  onChange={(e) => void handleBulkExcelSelected(e)}
+                />
+              </div>
+              {bulkLoading && (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-900 leading-relaxed">
+                  <p className="font-bold">Import in progress…</p>
+                  <p className="mt-0.5">
+                    Uploading and saving rows to the server. This can take 1–2 minutes on first request while
+                    Render wakes up. Keep this window open.
+                  </p>
+                </div>
+              )}
+              {bulkSummary && (
+                <pre
+                  ref={bulkSummaryRef}
+                  className={`text-[11px] whitespace-pre-wrap font-sans rounded-lg p-3 border ${
+                    bulkImportOk
+                      ? 'text-emerald-900 bg-emerald-50 border-emerald-200'
+                      : 'text-amber-950 bg-amber-50 border-amber-200'
+                  }`}
+                >
+                  {bulkSummary}
+                </pre>
+              )}
+            </div>
+
+            {/* Factory name */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{UI.displayName} *</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Factory name *</label>
               <input
                 required
-                className={`w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-violet-500 outline-none transition-all ${
+                className={`w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all ${
                   nameDuplicate ? 'ring-2 ring-amber-400' : ''
                 }`}
                 value={newShop.name}
-                onChange={(e) => setNewShop({ ...newShop, name: e.target.value })}
-                placeholder={UI.namePlaceholder}
+                onChange={e => setNewShop({ ...newShop, name: e.target.value })}
+                placeholder="e.g. Shenzhen Bright Electronics Co., Ltd."
               />
               {nameDuplicate && (
                 <p className="text-[11px] text-amber-700 font-semibold mt-1">
-                  {UI.nameDuplicateHint}
+                  This name matches an existing factory (ignoring spaces and capital letters). Saving will be rejected — pick a unique name.
                 </p>
               )}
             </div>
 
+            {/* Address */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{UI.mbtiType} *</label>
-              <select
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Location (city, province) *</label>
+              <input
                 required
-                className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-violet-500 outline-none transition-all"
-                value={mbtiType}
-                onChange={(e) => setMbtiType(e.target.value)}
-              >
-                {MBTI_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{UI.lookingFor}</label>
-              <div className="flex flex-wrap gap-2">
-                {LOOKING_FOR_OPTIONS.map((opt) => {
-                  const on = lookingFor.includes(opt.key);
-                  return (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      onClick={() =>
-                        setLookingFor((prev) =>
-                          on ? prev.filter((k) => k !== opt.key) : [...prev, opt.key]
-                        )
-                      }
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition ${
-                        on ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-gray-700 border-gray-200'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-violet-100 bg-violet-50/40 p-4 space-y-3">
-              <label className="block text-xs font-bold text-violet-800 uppercase tracking-wider">
-                {UI.coordsLabel} *
-              </label>
-              <button
-                type="button"
-                onClick={() => void handleUseMyLocation()}
-                disabled={locating}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-violet-300 bg-violet-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-violet-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
-              >
-                <Navigation className="w-4 h-4" />
-                {locating ? UI.geocoding : UI.useMyLocationForCoords}
-              </button>
-              <p className="text-[10px] text-violet-900/70 leading-snug">{UI.geocodeHint}</p>
-              <input
-                type="text"
-                value={coordInput}
-                placeholder={UI.coordsManualHint}
-                className="w-full px-4 py-3 rounded-xl bg-white border border-violet-100 focus:ring-2 focus:ring-violet-500 outline-none font-mono text-sm"
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setCoordInput(value);
-                  setGeocodeMessage('');
-                  const parts = value.split(/\s+/).filter((p) => p.trim());
-                  if (parts.length >= 2) {
-                    const latDec = parseFloat(parts[0]);
-                    const lngDec = parseFloat(parts[1]);
-                    if (!isNaN(latDec) && !isNaN(lngDec)) {
-                      setNewShop((prev) => ({ ...prev, lat: latDec, lng: lngDec }));
-                      setCoordsReady(true);
-                    }
-                  } else {
-                    setCoordsReady(false);
-                  }
-                }}
-              />
-              {coordsReady && newShop.lat != null && newShop.lng != null && (
-                <p className="text-xs text-green-600 font-bold">
-                  {UI.parsedCoords(newShop.lat, newShop.lng)}
-                </p>
-              )}
-              {geocodeMessage && (
-                <p className={`text-xs font-semibold ${coordsReady ? 'text-green-600' : 'text-amber-700'}`}>
-                  {geocodeMessage}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                {UI.locationOptional}
-              </label>
-              <input
                 className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all"
                 value={newShop.address}
-                onChange={(e) => setNewShop({ ...newShop, address: e.target.value })}
-                placeholder={UI.addressPlaceholder}
+                onChange={e => setNewShop({ ...newShop, address: e.target.value })}
+                placeholder="e.g. No.88 Zhangjiang Rd, Pudong, Shanghai"
               />
             </div>
 
+            {/* Credentials (comma → tags) */}
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                {UI.phoneOptional}
+                Credentials (buyer-facing)
               </label>
+              <div 
+                className={`
+                  flex flex-wrap items-center gap-2 
+                  w-full px-3 py-2 
+                  bg-gray-50 border-2 
+                  rounded-xl 
+                  transition-all outline-none
+                  ${tagInput ? 'border-rose-500 ring-2 ring-rose-100' : 'border-transparent focus-within:border-rose-500 focus-within:ring-2 focus-within:ring-rose-100'}
+                `}
+              >
+                {tags.map((tag, idx) => (
+                  <span 
+                    key={idx} 
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-100 text-rose-700 text-xs font-bold animate-in fade-in zoom-in duration-200"
+                  >
+                    {tag}
+                    <button 
+                      type="button" 
+                      onClick={() => setTags(tags.filter(t => t !== tag))}
+                      className="hover:bg-rose-200 rounded-full p-0.5 transition-colors"
+                    >
+                      <X size={12} strokeWidth={3} />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  type="text"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const val = tagInput.trim();
+                      if (val && !tags.includes(val)) {
+                        setTags([...tags, val]);
+                        setTagInput("");
+                      }
+                    } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
+                      setTags(tags.slice(0, -1));
+                    }
+                  }}
+                  placeholder={tags.length === 0 ? "Type & Enter (e.g. Industry Leader, ISO 9001)" : ""}
+                  className="flex-1 min-w-[120px] bg-transparent outline-none text-sm text-gray-700 placeholder-gray-400 py-1"
+                />
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1 ml-1">Press Enter to add, Backspace to remove last.</p>
+            </div>
+
+            {/* Coordinates */}
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
+                Coordinates (Paste from Google Maps) *
+              </label>
+             <input
+              type="text"
+              placeholder="e.g. 31.230416 121.473701"
+              className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all font-mono text-sm"
+              onChange={(e) => {
+                const value = e.target.value;
+                const parts = value.split(/\s+/).filter(p => p.trim());
+                if (parts.length >= 2) {
+                  const latDec = parseFloat(parts[0]);
+                  const lngDec = parseFloat(parts[1]);
+                  if (!isNaN(latDec) && !isNaN(lngDec)) {
+                    setNewShop(prev => ({ ...prev, lat: latDec, lng: lngDec }));
+                  }
+                }
+              }}
+            />
+              {newShop.lat && newShop.lng && (
+                <p className="text-xs text-green-600 font-bold mt-1 flex items-center gap-1">
+                  ✓ Parsed: {newShop.lat.toFixed(6)}, {newShop.lng.toFixed(6)}
+                </p>
+              )}
+            </div>
+
+            {/* Phone */}
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Phone Number *</label>
               <input
-                type="text"
+                required
+                type="tel"
                 className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all"
                 value={newShop.phone}
-                onChange={(e) => setNewShop({ ...newShop, phone: e.target.value })}
-                placeholder={UI.contactPlaceholder}
+                onChange={e => setNewShop({ ...newShop, phone: e.target.value })}
+                placeholder="WhatsApp / mobile for buyer inquiries"
               />
             </div>
 
-            <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200 space-y-3">
-              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
-                {UI.socialMedia}
-              </label>
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-500 mb-1">{UI.xiaohongshu}</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-violet-500 outline-none text-sm text-gray-800"
-                  value={newShop.social_xhs || ''}
-                  onChange={(e) => setNewShop({ ...newShop, social_xhs: e.target.value })}
-                  placeholder={UI.xiaohongshuPlaceholder}
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-500 mb-1">{UI.bilibili}</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-violet-500 outline-none text-sm text-gray-800"
-                  value={newShop.social_bilibili || ''}
-                  onChange={(e) => setNewShop({ ...newShop, social_bilibili: e.target.value })}
-                  placeholder={UI.bilibiliPlaceholder}
-                />
-              </div>
-            </div>
-
+            {/* Map region (home filter chips) */}
             <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <MapPin size={14} /> {UI.region}
+                <MapPin size={14} /> Industrial zone
               </label>
               <select
-                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-violet-500 outline-none text-sm text-gray-800"
+                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none text-sm text-gray-800"
                 value={newShop.filter_city || ''}
                 onChange={(e) => setNewShop({ ...newShop, filter_city: e.target.value })}
               >
-                <option value="">{UI.selectRegion}</option>
-                {SELECTABLE_REGIONS.map((r) => (
-                  <option key={r.key} value={r.label}>
-                    {r.label}
+                <option value="">Not set</option>
+                {CHINA_ECONOMIC_ZONES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
                   </option>
                 ))}
               </select>
@@ -386,47 +544,72 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <DollarSign size={14} /> {UI.age}{UI.optional}
+                <DollarSign size={14} /> MOQ / trade capacity
               </label>
-              <input
-                type="number"
-                min={16}
-                max={99}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-violet-500 outline-none text-sm text-gray-800"
-                value={newShop.min_spend ?? ''}
+              <select
+                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none text-sm text-gray-800"
+                value={
+                  newShop.min_spend != null && newShop.min_spend >= 1 && newShop.min_spend <= 4
+                    ? String(newShop.min_spend)
+                    : '0'
+                }
                 onChange={(e) => {
                   const v = e.target.value;
-                  setNewShop({ ...newShop, min_spend: v ? Number(v) : undefined });
+                  setNewShop({ ...newShop, min_spend: v === '0' ? undefined : Number(v) });
                 }}
-                placeholder={UI.agePlaceholder}
-              />
+              >
+                {MOQ_TIER_FORM_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{UI.interests}</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Main product *</label>
               <input
-                className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-violet-500 outline-none transition-all"
+                required
+                className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all"
                 value={newShop.main_product || ''}
                 onChange={(e) => setNewShop({ ...newShop, main_product: e.target.value })}
-                placeholder={UI.interestsPlaceholder}
+                placeholder="e.g. LED drivers, knitwear, CNC machined parts"
               />
             </div>
 
-            <div className="bg-violet-50/50 p-4 rounded-2xl border border-violet-100">
-              <label className="block text-xs font-bold text-violet-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <Info size={14} /> {UI.aboutMe}
+            {/* Capabilities */}
+            <div className="bg-rose-50/50 p-4 rounded-2xl border border-rose-100">
+              <label className="block text-xs font-bold text-rose-600 uppercase tracking-wider mb-2 flex items-center gap-2">
+                <Info size={14} /> Factory profile / capabilities
               </label>
               <textarea
                 rows={3}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-violet-200 focus:ring-2 focus:ring-violet-500 outline-none transition-all text-sm text-gray-700 resize-none"
+                className="w-full px-3 py-2 rounded-xl bg-white border border-rose-200 focus:ring-2 focus:ring-rose-500 outline-none transition-all text-sm text-gray-700 resize-none"
                 value={newShop.about_me}
-                onChange={(e) => setNewShop({ ...newShop, about_me: e.target.value })}
-                placeholder={UI.aboutMePlaceholder}
+                onChange={e => setNewShop({ ...newShop, about_me: e.target.value })}
+                placeholder="Lines, certifications, export markets, key customers (sanitized)…"
               />
+              <p className="text-[10px] text-rose-400 mt-1">Shown on the factory detail page.</p>
             </div>
 
+            {/* Commercial notes */}
+            <div className="bg-green-50/50 p-4 rounded-2xl border border-green-100">
+              <label className="block text-xs font-bold text-green-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                <DollarSign size={14} /> Pricing / lead time notes
+              </label>
+              <textarea
+                rows={3}
+                className="w-full px-3 py-2 rounded-xl bg-white border border-green-200 focus:ring-2 focus:ring-green-500 outline-none transition-all text-sm text-gray-700 resize-none"
+                value={newShop.additional_price}
+                onChange={e => setNewShop({ ...newShop, additional_price: e.target.value })}
+                placeholder={`FOB Shanghai\nTypical lead time: 25 days`}
+              />
+              <p className="text-[10px] text-green-500 mt-1">Use Enter for new lines.</p>
+            </div>
+
+            {/* Photos */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{UI.photos}</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Photos</label>
               <div className="flex gap-2 flex-wrap mb-2">
                 {(newShop.pictures as File[] | undefined)?.map((file, i) => (
                   <div key={i} className="relative group">
@@ -440,7 +623,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
               <label className="flex items-center justify-center gap-2 w-full p-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 hover:text-rose-500 hover:border-rose-500 hover:bg-rose-50 transition-all cursor-pointer">
                 <Upload className="w-5 h-5" />
-                <span className="text-sm font-medium">{UI.uploadImages}</span>
+                <span className="text-sm font-medium">Upload Images</span>
                 <input type="file" className="hidden" accept="image/*" multiple onChange={handleImageUpload} />
               </label>
             </div>
@@ -448,11 +631,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
           <button
             type="submit"
-            disabled={isSubmitting}
-            className={`w-full bg-violet-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-violet-200 active:scale-95 transition-transform sticky bottom-0
-              ${isSubmitting ? 'opacity-70 cursor-not-allowed bg-gray-400 shadow-none' : 'hover:bg-violet-700'}`}
+            disabled={isSubmitting || bulkLoading}
+            className={`w-full bg-rose-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-rose-200 active:scale-95 transition-transform sticky bottom-0
+              ${isSubmitting ? 'opacity-70 cursor-not-allowed bg-gray-400 shadow-none' : 'hover:bg-rose-600'}`}
           >
-            {isSubmitting ? UI.saving : UI.addProfile}
+            {isSubmitting ? 'Saving…' : 'Add factory'}
           </button>
         </form>
       </div>
