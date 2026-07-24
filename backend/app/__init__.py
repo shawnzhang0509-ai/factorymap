@@ -61,24 +61,6 @@ def _ensure_shop_main_product_column():
         print(f"⚠️ shop.main_product schema check skipped: {e}")
 
 
-def _ensure_shop_social_columns():
-    try:
-        engine = db.engine
-        insp = inspect(engine)
-        if not insp.has_table("shop"):
-            return
-        names = {c["name"] for c in insp.get_columns("shop")}
-        with engine.begin() as conn:
-            if "social_xhs" not in names:
-                conn.execute(text("ALTER TABLE shop ADD COLUMN social_xhs VARCHAR(200)"))
-                print("✅ Added missing column shop.social_xhs (schema sync)")
-            if "social_bilibili" not in names:
-                conn.execute(text("ALTER TABLE shop ADD COLUMN social_bilibili VARCHAR(200)"))
-                print("✅ Added missing column shop.social_bilibili (schema sync)")
-    except Exception as e:
-        print(f"⚠️ shop social columns schema check skipped: {e}")
-
-
 def _ensure_user_ad_manager_column():
     try:
         engine = db.engine
@@ -95,47 +77,6 @@ def _ensure_user_ad_manager_column():
         print(f"⚠️ users.is_ad_manager schema check skipped: {e}")
 
 
-def _ensure_user_email_column():
-    try:
-        engine = db.engine
-        insp = inspect(engine)
-        if not insp.has_table("users"):
-            return
-        names = {c["name"] for c in insp.get_columns("users")}
-        if "email" in names:
-            return
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR(255)"))
-            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email ON users (email)"))
-        print("✅ Added missing column users.email (schema sync)")
-    except Exception as e:
-        print(f"⚠️ users.email schema check skipped: {e}")
-
-
-def _ensure_user_has_password_column():
-    try:
-        engine = db.engine
-        insp = inspect(engine)
-        if not insp.has_table("users"):
-            return
-        names = {c["name"] for c in insp.get_columns("users")}
-        if "has_password" in names:
-            return
-        with engine.begin() as conn:
-            conn.execute(
-                text("ALTER TABLE users ADD COLUMN has_password BOOLEAN NOT NULL DEFAULT false")
-            )
-            conn.execute(
-                text(
-                    "UPDATE users SET has_password = true "
-                    "WHERE email IS NULL OR is_admin = true"
-                )
-            )
-        print("✅ Added missing column users.has_password (schema sync)")
-    except Exception as e:
-        print(f"⚠️ users.has_password schema check skipped: {e}")
-
-
 _LEGACY_PAGE_MARKERS = (
     "massage",
     "therapist",
@@ -145,42 +86,6 @@ _LEGACY_PAGE_MARKERS = (
     "new zealand massage",
     "massageshop",
 )
-
-
-def _auto_purge_legacy_factory_import_once():
-    try:
-        from app.legacy_purge import auto_purge_legacy_factory_import_once
-
-        auto_purge_legacy_factory_import_once()
-    except Exception as e:
-        db.session.rollback()
-        print(f"⚠️ legacy factory auto-purge skipped: {e}")
-
-
-def _maybe_seed_demo_profiles():
-    try:
-        from app.demo_seed import seed_demo_profiles_if_empty
-
-        created = seed_demo_profiles_if_empty()
-        if created:
-            print(f"🌱 Seeded {created} demo MBTI profile(s)")
-    except Exception as e:
-        db.session.rollback()
-        print(f"⚠️ demo seed skipped: {e}")
-
-
-def _maybe_purge_factory_data_once():
-    """One-time ops switch: set PURGE_ALL_SHOPS_ONCE=1 on Render, redeploy, then remove it."""
-    if os.environ.get("PURGE_ALL_SHOPS_ONCE") != "1":
-        return
-    try:
-        from app.repositories.shop_repository import ShopRepository
-
-        deleted = ShopRepository().purge_all_shops()
-        print(f"🧹 PURGE_ALL_SHOPS_ONCE removed {deleted} legacy listing(s) from the database")
-    except Exception as e:
-        db.session.rollback()
-        print(f"⚠️ PURGE_ALL_SHOPS_ONCE failed: {e}")
 
 
 def _migrate_legacy_site_pages():
@@ -246,7 +151,6 @@ def create_app():
     from app.models.association import ShopPicture
     from app.models.click_stat import ClickStat  # <--- 新增这一行
     from app.models.user import User
-    from app.models.email_otp import EmailOtp  # noqa: F401 — register table
     from app.models.shop_owner import ShopOwner
     from app.models.site_page import SitePage  # noqa: F401 — register table
 
@@ -278,17 +182,11 @@ def create_app():
         _ensure_shop_filter_city_column()
         _ensure_shop_min_spend_column()
         _ensure_shop_main_product_column()
-        _ensure_shop_social_columns()
         _ensure_user_ad_manager_column()
-        _ensure_user_email_column()
-        _ensure_user_has_password_column()
         _migrate_legacy_site_pages()
-        _maybe_purge_factory_data_once()
-        _auto_purge_legacy_factory_import_once()
-        _maybe_seed_demo_profiles()
 
     @app.route('/')
     def home():
-        return "<h1>MBTI Social Map API</h1><p>Flask backend is running.</p>"
+        return "<h1>China Factory Map API</h1><p>Flask backend is running.</p>"
         
     return app

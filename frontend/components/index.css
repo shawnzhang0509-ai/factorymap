@@ -72,72 +72,12 @@ html, body {
   padding: 0;
   width: 100%;
   height: 100%;
-  height: 100dvh;
   background-color: transparent;
-  overflow: hidden !important;
-  overscroll-behavior: none;
+  /* 关键：禁止整个页面出现横向滚动条，强制切断溢出 */
+  overflow-x: hidden !important; 
+  /* 关键：禁止边缘弹性滚动，防止布局抖动 */
+  overscroll-behavior-x: none; 
   box-sizing: border-box;
-}
-
-#root {
-  height: 100%;
-  height: 100dvh;
-  overflow: hidden;
-}
-
-/* 底部抽屉：固定在视口底部，不随页面橡皮筋滚动 */
-.map-bottom-drawer {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 999;
-  touch-action: none;
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
-  border-top-left-radius: 24px;
-  border-top-right-radius: 24px;
-  box-shadow: 0 -6px 28px rgba(0, 0, 0, 0.18), 0 -1px 0 rgba(255, 255, 255, 0.5) inset;
-  /* Solid gradient — skip backdrop-filter for faster mobile paint */
-  background: linear-gradient(
-    to top,
-    rgba(255, 130, 90, 0.97),
-    rgba(255, 190, 120, 0.9),
-    rgba(255, 248, 235, 0.88)
-  );
-  contain: layout style paint;
-  will-change: height;
-}
-
-.map-bottom-drawer .drawer-scroll-area {
-  touch-action: pan-x;
-  overscroll-behavior: contain;
-}
-
-/* 地图页全屏壳层 */
-.map-app-shell {
-  position: fixed;
-  inset: 0;
-  height: 100dvh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.map-skeleton {
-  background: linear-gradient(135deg, #e8f4f8 0%, #f5f0e8 50%, #f8ece8 100%);
-}
-
-.map-fab-column {
-  position: fixed;
-  right: 1rem;
-  z-index: 1001;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.75rem;
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
 }
 
 /* Leaflet default #ddd shows as a “white bar” above the map under overlays */

@@ -1,41 +1,25 @@
 
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <title>MBTI 社交地图</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>China Factory Map</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="preconnect" href="https://factorymap.onrender.com" crossorigin>
-    <link rel="dns-prefetch" href="https://factorymap.onrender.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-      html, body, #root {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
-        height: 100dvh;
-        overflow: hidden;
-        overscroll-behavior: none;
-        -webkit-overflow-scrolling: auto;
-        touch-action: manipulation;
+      html {
         background: transparent;
       }
       body {
-        font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-        position: fixed;
-        inset: 0;
-      }
-      #root {
-        position: relative;
-        overflow: hidden;
+        font-family: 'Inter', sans-serif;
+        overscroll-behavior-y: contain;
+        background: transparent !important;
       }
       .leaflet-control-attribution {
         display: none !important;
       }
+      /* Hide scrollbar for horizontal scroll */
       .no-scrollbar::-webkit-scrollbar {
         display: none;
       }

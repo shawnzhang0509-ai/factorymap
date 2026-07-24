@@ -1,16 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, MapPin, Phone, Upload, X, Check, ExternalLink, Navigation } from 'lucide-react';
+import { MessageCircle, MapPin, Phone, Upload, X, Check, ExternalLink } from 'lucide-react';
 import { Shop, ShopEdit } from '../types';
 import { dmsToDecimal } from '../utils/geoUtils';
 import { getTagStyle } from '../constants';
-import { MBTI_TYPES, mbtiTypeFromBadge } from '../constants/mbtiTypes';
-import { LOOKING_FOR_OPTIONS, interestsFromField } from '../constants/socialTags';
+import { CHINA_ECONOMIC_ZONES } from '../constants/filterRegions';
+import { MOQ_TIER_FORM_OPTIONS, moqTierLabel } from '../constants/moqTiers';
+import { credentialIdsFromBadgeText } from '../constants/factoryCredentials';
 import { getApiBaseUrl } from '../config/api';
-import { UI } from '../constants/i18n';
-import { SELECTABLE_REGIONS, inferShopRegion, getRegionByKey } from '../constants/filterRegions';
-import { geolocateWithPrivacyOffset, formatCoords } from '../utils/geocode';
 
 interface ShopCardProps {
   shop: Shop;
@@ -52,9 +50,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
-  const [locating, setLocating] = useState(false);
-  const [coordInput, setCoordInput] = useState('');
-  const [geocodeMessage, setGeocodeMessage] = useState('');
   const gestureStateRef = useRef<GestureState>('idle');
   const gestureStartRef = useRef<{ x: number; y: number; at: number } | null>(null);
   const blockActionUntilRef = useRef(0);
@@ -86,7 +81,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
     const slug = getShopSlug();
     const detailPath = slug ? `/shop/${slug}` : `/shop/${shop.id}`;
     const detailUrl = `${window.location.origin}${detailPath}`;
-    return `Hi ${ownerName}! I found your profile on MBTI Social Map and would like to connect. Profile: ${detailUrl}`;
+    return `Hello ${ownerName}, we found your factory on China Factory Map and would like to discuss sourcing. Profile: ${detailUrl}`;
   };
 
   const setGestureState = (nextState: GestureState) => {
@@ -173,10 +168,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
   const openEditor = () => {
     resetGestureMachine();
     setShowConfirmSave(false);
-    const lat = typeof shop.lat === 'number' ? shop.lat : null;
-    const lng = typeof shop.lng === 'number' ? shop.lng : null;
-    setCoordInput(lat != null && lng != null ? formatCoords(lat, lng) : '');
-    setGeocodeMessage('');
     setIsEditing(true);
   };
 
@@ -184,27 +175,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
     resetGestureMachine();
     setShowConfirmSave(false);
     setIsEditing(false);
-    setGeocodeMessage('');
-  };
-
-  const handleUseMyLocation = async () => {
-    setLocating(true);
-    setGeocodeMessage('');
-    try {
-      const result = await geolocateWithPrivacyOffset();
-      setEditData((prev) => ({
-        ...prev,
-        lat: result.lat,
-        lng: result.lng,
-        address: (prev.address || '').trim() || UI.autoLocationAddress,
-      }));
-      setCoordInput(formatCoords(result.lat, result.lng));
-      setGeocodeMessage(UI.geocodeSuccess(result.offset_km));
-    } catch (err) {
-      setGeocodeMessage(err instanceof Error ? err.message : UI.geocodeFailed);
-    } finally {
-      setLocating(false);
-    }
   };
 
   const runGuardedAction = (event: React.SyntheticEvent, action: () => void) => {
@@ -249,8 +219,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
     about_me: shop.about_me || '',
     additional_price: shop.additional_price || '',
     main_product: (shop as Shop & { main_product?: string }).main_product || '',
-    social_xhs: (shop as Shop & { social_xhs?: string }).social_xhs || '',
-    social_bilibili: (shop as Shop & { social_bilibili?: string }).social_bilibili || '',
     filter_city: (shop as Shop & { filter_city?: string }).filter_city || '',
     min_spend:
       typeof (shop as Shop & { min_spend?: number }).min_spend === 'number' &&
@@ -278,7 +246,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
     const phone = shop.phone || '';
     if (!phone) {
-        alert(UI.noPhone);
+        alert('No phone number available');
         return;
     }
 
@@ -337,8 +305,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
     formData.append('about_me', editData.about_me || '');
     formData.append('additional_price', editData.additional_price || '');
     formData.append('main_product', editData.main_product || '');
-    formData.append('social_xhs', editData.social_xhs || '');
-    formData.append('social_bilibili', editData.social_bilibili || '');
 
     formData.append('badge_text', editData.badge_text || '');
     if (isAdmin) {
@@ -407,8 +373,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
         about_me: editData.about_me,
         additional_price: editData.additional_price,
         main_product: editData.main_product || '',
-        social_xhs: editData.social_xhs || '',
-        social_bilibili: editData.social_bilibili || '',
         filter_city: editData.filter_city || '',
         min_spend: minSpendVal,
       };
@@ -422,8 +386,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
         about_me: editData.about_me,
         additional_price: editData.additional_price,
         main_product: editData.main_product || '',
-        social_xhs: editData.social_xhs || '',
-        social_bilibili: editData.social_bilibili || '',
         filter_city: editData.filter_city || '',
         min_spend: minSpendVal,
       }));
@@ -489,7 +451,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
           }}
         >
           <div className="flex items-center justify-between p-4 border-b bg-gray-50 rounded-t-2xl">
-            <h3 className="font-bold text-lg text-gray-800">{UI.editProfile}</h3>
+            <h3 className="font-bold text-lg text-gray-800">Edit Shop</h3>
             <button 
               onClick={(e) => {
                 runGuardedAction(e, closeEditor);
@@ -505,7 +467,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
           >
             {/* NAME */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">{UI.displayName}</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">NAME</label>
               <input
                 value={editData.name || ''}
                 onChange={(e) => setEditData({ ...editData, name: e.target.value })}
@@ -524,7 +486,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
             {/* ADDRESS */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">{UI.locationOptional}</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">ADDRESS</label>
               <textarea
                 value={editData.address || ''}
                 onChange={(e) => setEditData({ ...editData, address: e.target.value })}
@@ -536,96 +498,68 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
             {/* PHONE */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">{UI.phoneOptional}</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">PHONE</label>
               <input
-                type="text"
                 value={editData.phone || ''}
                 onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                placeholder={UI.contactPlaceholder}
                 className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
-            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
-              <label className="block text-xs font-bold text-gray-500">{UI.socialMedia}</label>
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-500 mb-1">{UI.xiaohongshu}</label>
-                <input
-                  type="text"
-                  value={editData.social_xhs || ''}
-                  onChange={(e) => setEditData({ ...editData, social_xhs: e.target.value })}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder={UI.xiaohongshuPlaceholder}
-                  className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-500 mb-1">{UI.bilibili}</label>
-                <input
-                  type="text"
-                  value={editData.social_bilibili || ''}
-                  onChange={(e) => setEditData({ ...editData, social_bilibili: e.target.value })}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder={UI.bilibiliPlaceholder}
-                  className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                />
-              </div>
-            </div>
-
-            {/* INTERESTS */}
+            {/* MAIN PRODUCT */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">{UI.interests}</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">MAIN PRODUCT</label>
               <input
                 type="text"
                 value={editData.main_product || ''}
                 onChange={(e) => setEditData({ ...editData, main_product: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                placeholder={UI.interestsPlaceholder}
+                placeholder="e.g. Consumer electronics, textiles, machinery"
                 className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
-            {/* BIO */}
+            {/* ABOUT / CAPABILITIES */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">{UI.aboutMe}</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">CAPABILITIES & NOTES</label>
               <textarea
                 value={editData.about_me || ''}
                 onChange={(e) => setEditData({ ...editData, about_me: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                placeholder={UI.aboutMePlaceholder}
+                placeholder="Equipment, certifications, production lines, export markets…"
                 className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 rows={3}
               />
             </div>
 
-            {/* LOOKING FOR */}
+            {/* PRICING / TERMS */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">{UI.lookingFor}</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">PRICING / LEAD TIME NOTES</label>
               <input
                 type="text"
                 value={editData.additional_price || ''}
                 onChange={(e) => setEditData({ ...editData, additional_price: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                placeholder="e.g. friends, dating, activity"
+                placeholder="e.g. FOB terms, typical lead time, tooling fees"
                 className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
-            {/* CITY */}
+            {/* ECONOMIC ZONE (admin only) */}
             {isAdmin && (
               <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">{UI.region}</label>
+                <label className="block text-xs font-bold text-gray-500 mb-1">INDUSTRIAL ZONE</label>
                 <select
                   value={editData.filter_city || ''}
                   onChange={(e) => setEditData({ ...editData, filter_city: e.target.value })}
                   onClick={(e) => e.stopPropagation()}
                   className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                 >
-                  <option value="">{UI.selectRegion}</option>
-                  {SELECTABLE_REGIONS.map((r) => (
-                    <option key={r.key} value={r.label}>
-                      {r.label}
+                  <option value="">— Not set —</option>
+                  {CHINA_ECONOMIC_ZONES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
                     </option>
                   ))}
                 </select>
@@ -634,53 +568,44 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
             {shop.can_edit && (
               <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">{UI.age}{UI.optional}</label>
-                <input
-                  type="number"
-                  min={16}
-                  max={99}
-                  value={editData.min_spend ?? ''}
+                <label className="block text-xs font-bold text-gray-500 mb-1">MOQ / TRADE CAPACITY</label>
+                <select
+                  value={
+                    editData.min_spend != null && editData.min_spend >= 1 && editData.min_spend <= 4
+                      ? String(editData.min_spend)
+                      : '0'
+                  }
                   onChange={(e) => {
                     const v = e.target.value;
                     setEditData({
                       ...editData,
-                      min_spend: v ? Number(v) : undefined,
+                      min_spend: v === '0' ? undefined : Number(v),
                     });
                   }}
                   onClick={(e) => e.stopPropagation()}
                   className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                  placeholder={UI.agePlaceholder}
-                />
+                >
+                  {MOQ_TIER_FORM_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-gray-500 mt-1">Shown on the map card for overseas buyers</p>
               </div>
             )}
 
             {/* COORDINATES */}
-            <div className="bg-violet-50/40 p-3 rounded-lg border border-violet-100 space-y-2">
-              <label className="block text-xs font-bold text-violet-800 mb-1">{UI.coordsLabel}</label>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void handleUseMyLocation();
-                }}
-                disabled={locating}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-violet-300 bg-violet-600 px-3 py-2 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-60"
-              >
-                <Navigation className="w-3.5 h-3.5" />
-                {locating ? UI.geocoding : UI.useMyLocationForCoords}
-              </button>
-              <p className="text-[10px] text-violet-900/70 leading-snug">{UI.geocodeHint}</p>
+            <div className="bg-gray-50 p-3 rounded-lg border">
+              <label className="block text-xs font-bold text-gray-500 mb-1">COORDINATES</label>
               <input
                 type="text"
-                value={coordInput}
-                placeholder={UI.coordsManualHint}
-                className="w-full px-3 py-2 text-sm border border-violet-100 rounded-lg font-mono bg-white focus:ring-2 focus:ring-violet-500 outline-none"
+                placeholder="Paste from Google Maps..."
+                className="w-full px-3 py-2 text-sm border rounded-lg font-mono bg-white focus:ring-2 focus:ring-blue-500 outline-none"
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => {
-                  const value = e.target.value;
-                  setCoordInput(value);
-                  setGeocodeMessage('');
-                  const parts = value.split(/[,，\s]+/).filter((p) => p !== '');
+                  const value = e.target.value.trim();
+                  const parts = value.split(/[,，\s]+/).filter(p => p !== '');
                   if (parts.length >= 2) {
                     const latNum = parseFloat(parts[0]);
                     const lngNum = parseFloat(parts[1]);
@@ -696,21 +621,14 @@ const ShopCard: React.FC<ShopCardProps> = ({
                   }
                 }}
               />
-              {editData.lat != null && editData.lng != null && (
-                <p className="text-[10px] text-green-600 font-semibold">
-                  {UI.parsedCoords(editData.lat, editData.lng)}
-                </p>
-              )}
-              {geocodeMessage ? (
-                <p className={`text-[10px] font-semibold ${geocodeMessage.startsWith('已生成') ? 'text-green-600' : 'text-amber-700'}`}>
-                  {geocodeMessage}
-                </p>
-              ) : null}
+              <p className="text-[10px] text-gray-400 mt-1 text-right">
+                {editData.lat?.toFixed(4)}, {editData.lng?.toFixed(4)}
+              </p>
             </div>
 
             {/* IMAGES */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-2">{UI.photos}</label>
+              <label className="block text-xs font-bold text-gray-500 mb-2">IMAGES</label>
               <label 
                 className="flex items-center justify-center gap-2 w-full py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
                 onClick={(e) => e.stopPropagation()}
@@ -768,20 +686,54 @@ const ShopCard: React.FC<ShopCardProps> = ({
               </div>
             </div>
 
-            {/* MBTI TYPE */}
+            {/* CREDENTIALS (comma-separated English labels) */}
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">MBTI TYPE</label>
-              <select
-                value={(editData.badge_text || '').trim().toUpperCase()}
+              <label className="block text-xs font-bold text-gray-700 mb-1">CREDENTIALS</label>
+              <input
+                type="text"
+                value={editData.badge_text || ''}
                 onChange={(e) => setEditData({ ...editData, badge_text: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full px-3 py-2 text-sm border rounded-lg outline-none border-gray-300 focus:ring-2 focus:ring-blue-500 bg-white"
-              >
-                <option value="">— Select —</option>
-                {MBTI_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
+                placeholder="e.g. Industry Leader, ISO 9001 Certified, Export Experience"
+                disabled={!isAdmin}
+                className={`w-full px-3 py-2 text-sm border rounded-lg outline-none ${
+                  isAdmin
+                    ? 'border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white'
+                    : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}
+              />
+              {!isAdmin && (
+                <p className="text-[10px] text-amber-600 mt-1">
+                  Credentials are admin-only and cannot be changed by supplier users.
+                </p>
+              )}
+              <p className="text-[10px] text-gray-500 mt-1">
+                Use the buyer-facing phrases from the map filter (comma-separated), e.g. Industry Leader, OEM/ODM
+                Specialist, Trade Assurance.
+              </p>
+
+              {editData.badge_text && editData.badge_text.trim() !== '' && (
+                <div className="mt-3 flex flex-wrap gap-2 p-2 bg-gray-50 rounded-lg border border-gray-100">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider self-center mr-1">Preview:</span>
+                  {editData.badge_text.split(',').map((tag, idx) => {
+                    const t = tag.trim();
+                    if (!t) return null;
+                    const lower = t.toLowerCase();
+                    const config = getTagStyle(lower);
+                    const display = config.text || (t.charAt(0).toUpperCase() + t.slice(1));
+                    
+                    return (
+                      <span 
+                        key={idx} 
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black tracking-wide shadow-md ${config.bg}`}
+                      >
+                        {config.icon && <span className="text-base leading-none shrink-0 filter drop-shadow-sm">{config.icon}</span>}
+                        <span className="whitespace-nowrap">{display}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
@@ -899,7 +851,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (!deleting && window.confirm(`确定删除「${shop.name}」？`)) onDelete(shop);
+                if (!deleting && window.confirm(`Delete "${shop.name}"?`)) onDelete(shop);
               }}
               disabled={deleting}
               className={`w-7 h-7 rounded-full flex items-center justify-center shadow-md text-sm transition-colors ${
@@ -912,23 +864,26 @@ const ShopCard: React.FC<ShopCardProps> = ({
         </div>
       )}
 
-      {/* MBTI badge */}
+      {/* Credential badges */}
       {(() => {
-        const type = mbtiTypeFromBadge(shop.badge_text);
-        if (!type) return null;
-        const config = getTagStyle(type.toLowerCase());
+        const ids = credentialIdsFromBadgeText(shop.badge_text);
+        if (!ids.length) return null;
         return (
         <div className="absolute top-3 left-3 z-40 flex flex-wrap gap-2 max-w-[85%] pointer-events-none">
-          <span
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black tracking-wide shadow-lg backdrop-blur-sm ${config.bg}`}
-          >
-            <span className="whitespace-nowrap">{type}</span>
-          </span>
-          {shop.new_girls_last_15_days ? (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-rose-500 text-white shadow-lg">
-              {UI.newMember}
-            </span>
-          ) : null}
+          {ids.map((id) => {
+            const config = getTagStyle(id);
+            const displayText = config.text || id;
+
+            return (
+              <span 
+                key={id} 
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black tracking-wide shadow-lg backdrop-blur-sm ${config.bg}`}
+              >
+                {config.icon && <span className="text-lg leading-none shrink-0 filter drop-shadow-md">{config.icon}</span>}
+                <span className="whitespace-nowrap">{displayText}</span>
+              </span>
+            );
+          })}
         </div>
         );
       })()}
@@ -1038,23 +993,23 @@ const ShopCard: React.FC<ShopCardProps> = ({
       <div className="p-3 space-y-2">
         <div className="flex items-start justify-between gap-2 min-h-[1.25rem] pr-6">
           <h3 className="font-bold text-gray-900 text-base truncate min-w-0 flex-1">{shop.name}</h3>
-          {(shop.filter_city?.trim() || inferShopRegion(shop) !== 'other') ? (
+          {shop.filter_city?.trim() ? (
             <span
               className="shrink-0 max-w-[45%] truncate rounded-md border border-rose-200/90 bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-rose-700 sm:text-[11px]"
-              title={shop.filter_city?.trim() || getRegionByKey(inferShopRegion(shop)).label}
+              title={shop.filter_city.trim()}
             >
-              {shop.filter_city?.trim() || getRegionByKey(inferShopRegion(shop)).label}
+              {shop.filter_city.trim()}
             </span>
           ) : null}
         </div>
         {shop.main_product?.trim() ? (
           <p className="text-[10px] font-semibold text-slate-700 sm:text-[11px]">
-            {UI.interests}：{interestsFromField(shop.main_product).join('、')}
+            Main product: {shop.main_product.trim()}
           </p>
         ) : null}
-        {shop.min_spend != null && shop.min_spend > 0 && shop.min_spend < 120 && (
+        {shop.min_spend != null && shop.min_spend >= 1 && shop.min_spend <= 4 && (
           <p className="text-[10px] font-semibold text-gray-600 sm:text-[11px]">
-            {shop.min_spend}{UI.age}
+            {moqTierLabel(shop.min_spend)}
           </p>
         )}
         <div className="flex items-start gap-1.5 text-gray-500 text-xs leading-tight min-h-[2rem] overflow-hidden">
@@ -1070,7 +1025,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
             className="flex-1 border border-rose-500 text-rose-600 hover:bg-rose-50 font-semibold py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-colors text-sm"
           >
             <ExternalLink className="w-4 h-4" />
-            <span>{UI.viewProfile}</span>
+            <span>View Profile</span>
           </button>
           <button
             type="button"
@@ -1078,14 +1033,14 @@ const ShopCard: React.FC<ShopCardProps> = ({
             className="flex-1 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-semibold py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-colors text-sm"
           >
             <MessageCircle className="w-4 h-4" />
-            <span>{UI.sayHi}</span>
+            <span>Contact Supplier</span>
           </button>
 
           <button
             type="button"
             onClick={(e) => handleActionClick('call', e)}
             className="bg-gray-100 hover:bg-gray-200 p-2 rounded-xl text-gray-600 transition-colors shrink-0"
-            aria-label="Call"
+            aria-label="Call supplier"
           >
             <Phone className="w-5 h-5" />
           </button>

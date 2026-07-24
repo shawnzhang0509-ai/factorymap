@@ -50,16 +50,14 @@ def _editable_shop_ids(user):
 def _sanitize_shop_payload_for_role(data, user):
     """
     Enforce admin-only editable fields.
-    Regular users may set MBTI (badge_text) and region (filter_city) on their profile.
+    Non-admin users cannot set or update badge-related fields.
     """
     cleaned = dict(data or {})
     if not _can_manage_all_shops(user):
+        cleaned.pop("badge_text", None)
         cleaned.pop("new_girls_last_15_days", None)
+        cleaned.pop("filter_city", None)
     return cleaned
-
-
-def _user_owned_shop_count(user_id: int) -> int:
-    return ShopOwner.query.filter_by(user_id=user_id).count()
 
 @shop_bp.route('/search', methods=['GET'])
 @shop_bp.route('/shop/search', methods=['GET'])
@@ -82,8 +80,8 @@ def add_shop():
     auth_user = _require_auth_user()
     if not auth_user:
         return jsonify({"error": "Unauthorized"}), 401
-    if not _can_manage_all_shops(auth_user) and _user_owned_shop_count(auth_user.id) >= 1:
-        return jsonify({"error": "你已有一个资料，请编辑现有资料"}), 409
+    if not _can_manage_all_shops(auth_user):
+        return jsonify({"error": "Only admin or ad manager can create new ads"}), 403
 
     data = _sanitize_shop_payload_for_role(request.form.to_dict(), auth_user)
     files = request.files.getlist("pictures")
@@ -98,9 +96,7 @@ def add_shop():
         db.session.commit()
 
     # ✅ 修改：直接调用 to_dict()
-    payload = shop.to_dict()
-    payload["can_edit"] = True
-    return jsonify(payload)
+    return jsonify(shop.to_dict())
 
 
 @shop_bp.route("/bulk-import-template", methods=["GET"])
@@ -213,78 +209,6 @@ def bulk_import_excel():
 @shop_bp.route('/shop/list')
 def list_all():
     return jsonify({"shops": "This is a test endpoint"})
-
-
-@shop_bp.route('/geocode', methods=['GET'])
-@shop_bp.route('/shop/geocode', methods=['GET'])
-def geocode_address():
-    """Resolve address → WGS-84 coordinates with 2–3 km privacy offset."""
-    address = (request.args.get('address') or '').strip()
-    if len(address) < 2:
-        return jsonify({"error": "地址太短，请填写城市与区县"}), 400
-    try:
-        from app.services.geocode import geocode_address_with_privacy_offset
-
-        result = geocode_address_with_privacy_offset(address)
-        return jsonify({"success": True, **result})
-    except ValueError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 404
-    except Exception:
-        current_app.logger.exception("geocode failed for %r", address)
-        return jsonify({"success": False, "error": "地理编码服务暂时不可用，请稍后重试或手动粘贴坐标"}), 502
-
-
-@shop_bp.route('/admin/purge-legacy', methods=['POST'])
-@shop_bp.route('/shop/admin/purge-legacy', methods=['POST'])
-def purge_legacy_factory_data():
-    """Token-only trigger for one-time legacy factory cleanup (no admin login required)."""
-    data = request.get_json() or {}
-    token = data.get("token")
-    if token != current_app.config["ADMIN_DELETE_TOKEN"]:
-        return jsonify({"error": "Unauthorized"}), 401
-
-    try:
-        from app.legacy_purge import auto_purge_legacy_factory_import_once
-        from app.demo_seed import seed_demo_profiles_if_empty
-
-        deleted = auto_purge_legacy_factory_import_once()
-        seeded = seed_demo_profiles_if_empty()
-        return jsonify({
-            "success": True,
-            "deleted_count": deleted,
-            "seeded_demo_profiles": seeded,
-            "remaining_count": Shop.query.count(),
-        })
-    except Exception as e:
-        current_app.logger.error(f"purge_legacy_factory_data failed: {e}")
-        return jsonify({"error": "Purge failed", "details": str(e)}), 500
-
-
-@shop_bp.route('/admin/purge-all', methods=['POST'])
-@shop_bp.route('/shop/admin/purge-all', methods=['POST'])
-def purge_all_shops():
-    """Admin-only: delete every listing (e.g. legacy factory bulk import)."""
-    auth_user = _require_auth_user()
-    if not auth_user or not _is_admin_user(auth_user):
-        return jsonify({"error": "Unauthorized"}), 401
-
-    data = request.get_json() or {}
-    token = data.get("token")
-    confirm = (data.get("confirm") or "").strip()
-    admin_delete_token = current_app.config["ADMIN_DELETE_TOKEN"]
-
-    if token != admin_delete_token:
-        return jsonify({"error": "Unauthorized"}), 401
-    if confirm != "PURGE_ALL_SHOPS":
-        return jsonify({"error": 'Missing confirm: send {"confirm":"PURGE_ALL_SHOPS"}'}), 400
-
-    try:
-        deleted = service.purge_all_shops()
-        return jsonify({"success": True, "deleted_count": deleted})
-    except Exception as e:
-        current_app.logger.error(f"purge_all_shops failed: {e}")
-        return jsonify({"error": "Purge failed", "details": str(e)}), 500
-
 
 @shop_bp.route('/del', methods=['POST'])
 @shop_bp.route('/shop/del', methods=['POST'])

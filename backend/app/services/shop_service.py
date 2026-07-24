@@ -20,8 +20,5 @@ class ShopService:
         self.repo.del_shop(id)
         return True
 
-    def purge_all_shops(self) -> int:
-        return self.repo.purge_all_shops()
-
     def update_shop(self, shop_id, data, files):
         return self.repo.update_shop(shop_id, data, files)
